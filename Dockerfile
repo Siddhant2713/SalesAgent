@@ -57,9 +57,11 @@ HEALTHCHECK --interval=30s --timeout=5s --retries=3 \
     CMD python -c "import os; import urllib.request; urllib.request.urlopen(f'http://localhost:{os.environ.get(\"PORT\",7860)}/health')"
 
 # Run with gunicorn — uses $PORT for platform compatibility
+# --preload loads the app once before forking workers (prevents SQLite race condition)
 CMD gunicorn main:app \
      --worker-class uvicorn.workers.UvicornWorker \
      --bind 0.0.0.0:$PORT \
      --workers 2 \
      --timeout 120 \
+     --preload \
      --access-logfile -
