@@ -4,6 +4,8 @@ import { getUserSettings, updateUserSettings } from '../api/api';
 export default function Settings() {
   const [settings, setSettings] = useState({
     gemini_api_key: '',
+    smtp_host: 'smtp.gmail.com',
+    smtp_port: 587,
     smtp_username: '',
     smtp_password: '',
     smtp_from_name: ''
@@ -22,6 +24,8 @@ export default function Settings() {
       const data = await getUserSettings();
       setSettings({
         gemini_api_key: data.gemini_api_key || '',
+        smtp_host: data.smtp_host || 'smtp.gmail.com',
+        smtp_port: data.smtp_port || 587,
         smtp_username: data.smtp_username || '',
         smtp_password: data.smtp_password || '',
         smtp_from_name: data.smtp_from_name || ''
@@ -55,7 +59,7 @@ export default function Settings() {
       <div className="md:flex md:items-center md:justify-between mb-6">
         <div className="flex-1 min-w-0">
           <h2 className="text-2xl font-bold leading-7 text-gray-900 sm:text-3xl sm:truncate">Account Settings</h2>
-          <p className="mt-1 text-sm text-gray-500">Configure your API keys and email credentials.</p>
+          <p className="mt-1 text-sm text-gray-500">Configure your API keys and email credentials. Each user uses their own keys — nothing is shared.</p>
         </div>
       </div>
 
@@ -84,6 +88,7 @@ export default function Settings() {
 
           <div className="pt-4">
             <h3 className="text-lg leading-6 font-medium text-gray-900 border-b pb-2">Email Delivery (SMTP)</h3>
+            <p className="mt-2 text-sm text-gray-500">Emails are sent from <strong>your</strong> email account. We never see or store your real password — use a Gmail App Password.</p>
             <div className="mt-4 grid grid-cols-1 gap-y-6 sm:grid-cols-2 sm:gap-x-4">
               <div className="sm:col-span-2">
                 <label htmlFor="from-name" className="block text-sm font-medium text-gray-700">From Name</label>
@@ -97,9 +102,9 @@ export default function Settings() {
                 />
               </div>
               <div className="sm:col-span-2">
-                <label htmlFor="gmail-address" className="block text-sm font-medium text-gray-700">Gmail Address</label>
+                <label htmlFor="smtp-email" className="block text-sm font-medium text-gray-700">Email Address</label>
                 <input
-                  id="gmail-address"
+                  id="smtp-email"
                   type="email"
                   className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
                   value={settings.smtp_username}
@@ -108,7 +113,7 @@ export default function Settings() {
                 />
               </div>
               <div className="sm:col-span-2">
-                <label htmlFor="app-password" className="block text-sm font-medium text-gray-700">Gmail App Password</label>
+                <label htmlFor="app-password" className="block text-sm font-medium text-gray-700">App Password</label>
                 <input
                   id="app-password"
                   type="password"
@@ -117,7 +122,32 @@ export default function Settings() {
                   onChange={(e) => setSettings({...settings, smtp_password: e.target.value})}
                   placeholder="16-character app password"
                 />
-                <p className="mt-1 text-xs text-gray-500">Must be an App Password, not your real password.</p>
+                <p className="mt-1 text-xs text-gray-500">
+                  For Gmail: Go to Google Account → Security → 2-Step Verification → App Passwords.
+                </p>
+              </div>
+              
+              <div>
+                <label htmlFor="smtp-host" className="block text-sm font-medium text-gray-700">SMTP Host</label>
+                <input
+                  id="smtp-host"
+                  type="text"
+                  className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                  value={settings.smtp_host}
+                  onChange={(e) => setSettings({...settings, smtp_host: e.target.value})}
+                  placeholder="smtp.gmail.com"
+                />
+              </div>
+              <div>
+                <label htmlFor="smtp-port" className="block text-sm font-medium text-gray-700">SMTP Port</label>
+                <input
+                  id="smtp-port"
+                  type="number"
+                  className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                  value={settings.smtp_port}
+                  onChange={(e) => setSettings({...settings, smtp_port: parseInt(e.target.value) || 587})}
+                  placeholder="587"
+                />
               </div>
             </div>
           </div>

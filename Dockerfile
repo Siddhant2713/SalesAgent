@@ -15,7 +15,8 @@ RUN npm ci --silent
 
 COPY frontend/ ./
 
-# Build production assets
+# Build production assets (empty base URL = same-origin API calls)
+ENV VITE_API_BASE_URL=""
 RUN npm run build
 
 # ── Stage 2: Backend + Serve ─────────────────────────────────────────────────
