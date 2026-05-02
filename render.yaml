@@ -1,0 +1,28 @@
+services:
+  - type: web
+    name: salesagent
+    runtime: python
+    buildCommand: |
+      cd frontend && VITE_API_BASE_URL="" npm install && VITE_API_BASE_URL="" npm run build && cd ..
+      cp -r frontend/dist backend/static
+      cd backend && pip install -r requirements.txt
+    startCommand: cd backend && gunicorn main:app --workers 2 --worker-class uvicorn.workers.UvicornWorker --bind 0.0.0.0:$PORT
+    envVars:
+      - key: SECRET_KEY
+        generateValue: true
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: SMTP_HOST
+        value: smtp.gmail.com
+      - key: SMTP_PORT
+        value: "587"
+      - key: SMTP_USERNAME
+        sync: false
+      - key: SMTP_PASSWORD
+        sync: false
+      - key: SMTP_FROM_NAME
+        sync: false
+      - key: DATABASE_URL
+        value: sqlite:///./salesagent.db
+      - key: PYTHON_VERSION
+        value: "3.12.3"

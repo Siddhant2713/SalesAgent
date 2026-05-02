@@ -36,9 +36,17 @@ app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 # ── Middleware (order matters — added last, runs first) ───────────────────────
 app.add_middleware(SecurityHeadersMiddleware)
+# ── CORS ──────────────────────────────────────────────────────────────────────
+# In production (Render), frontend is served from same origin — CORS not needed.
+# Kept for local development.
+allowed_origins = ["http://localhost:5173"]
+render_url = os.environ.get("RENDER_EXTERNAL_URL")
+if render_url:
+    allowed_origins.append(render_url)
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],
+    allow_origins=allowed_origins,
     allow_credentials=False,
     allow_methods=["GET", "POST", "PATCH", "DELETE"],
     allow_headers=["Content-Type", "Authorization"],
