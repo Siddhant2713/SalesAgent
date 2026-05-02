@@ -5,13 +5,28 @@ the body), punchy, and end with a clear but low-pressure call to action.
 Always respond with valid JSON only. No markdown. No explanation. No code fences.
 """
 
-def build_initial_prompt(name: str, role: str, company: str, sender_name: str = "") -> str:
+def build_initial_prompt(name: str, role: str, company: str, sender_name: str = "", context: dict = None) -> str:
     sender_info = f"\n- Your Name (Sender): {sender_name}" if sender_name else ""
+    
+    context_str = ""
+    if context and context.get("best_hook"):
+        pain_points = ", ".join(context.get("likely_pain_points", []))
+        context_str = f"""
+Company Research (use this to personalize the emails):
+- Company Stage: {context.get('company_stage', 'unknown')}
+- Key Pain Points: {pain_points}
+- Best Angle: {context.get('best_hook', '')}
+- Recommended Tone: {context.get('tone_recommendation', 'friendly')}
+
+Use these insights to write emails that feel researched and specific to {company}. 
+Reference their pain points implicitly — don't list them robotically.
+"""
+    
     return f"""Generate 3 cold outreach email variants for this lead:
 - Lead Name: {name}
 - Lead Role: {role}
 - Lead Company: {company}{sender_info}
-
+{context_str}
 For each variant, provide a subject line and email body. DO NOT use placeholders like [Your Name] or [Company Name]. Sign off the email using the Sender Name provided above.
 
 Tones required:

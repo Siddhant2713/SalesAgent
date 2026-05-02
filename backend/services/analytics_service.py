@@ -8,9 +8,11 @@ from utils.cache import ttl_cache
 def get_analytics_data(user_id: int, db: Session) -> dict:
     total_leads = db.query(Lead).filter(Lead.user_id == user_id).count()
     
-    # Calculate overall stats using aggregation
+    # Calculate overall stats — only count initial emails (not followups) for accurate reply rate
     overall_stats = db.query(
-        func.count(Message.id).filter(Message.sent == True).label("emails_sent"),
+        func.count(Message.id).filter(
+            and_(Message.sent == True, Message.message_type == "initial")
+        ).label("emails_sent"),
     ).join(Campaign).filter(Campaign.user_id == user_id).first()
     
     emails_sent = overall_stats.emails_sent or 0

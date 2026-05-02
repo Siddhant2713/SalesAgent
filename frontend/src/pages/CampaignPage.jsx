@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { getLeads, getQuota, generateMessages, sendCampaign, sendFollowups } from '../api/api';
 import { useNavigate } from 'react-router-dom';
 import CampaignSetup from '../components/CampaignSetup';
@@ -24,6 +24,14 @@ export default function CampaignPage() {
     
     // Results
     const [sendResults, setSendResults] = useState(null);
+
+    // Focus management — move focus to preview when generation completes
+    const previewRef = useRef(null);
+    useEffect(() => {
+        if (step === 'preview' && previewRef.current) {
+            previewRef.current.focus();
+        }
+    }, [step]);
 
     useEffect(() => {
         loadData();
@@ -138,11 +146,13 @@ export default function CampaignPage() {
             )}
 
             {step === 'preview' && generatedData && (
-                <CampaignPreview 
-                    generatedData={generatedData}
-                    selectedTone={selectedTone} setSelectedTone={setSelectedTone}
-                    handleSend={handleSend}
-                />
+                <div ref={previewRef} tabIndex="-1" aria-label="Generated email previews">
+                    <CampaignPreview 
+                        generatedData={generatedData}
+                        selectedTone={selectedTone} setSelectedTone={setSelectedTone}
+                        handleSend={handleSend}
+                    />
+                </div>
             )}
 
             {step === 'sending' && (

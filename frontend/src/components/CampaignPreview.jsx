@@ -1,5 +1,6 @@
 import React from 'react';
 import MessagePreview from './MessagePreview';
+import EnrichmentCard from './EnrichmentCard';
 
 export default function CampaignPreview({
     generatedData, selectedTone, setSelectedTone, handleSend
@@ -12,12 +13,17 @@ export default function CampaignPreview({
 
             <div className="space-y-6 mb-8">
                 {generatedData.messages.map(msgData => (
-                    <MessagePreview 
-                        key={msgData.lead_id} 
-                        leadName={msgData.lead_name} 
-                        company={msgData.company} 
-                        variants={msgData.variants} 
-                    />
+                    <div key={msgData.lead_id}>
+                        <EnrichmentCard 
+                            enrichment={msgData.enrichment} 
+                            company={msgData.company} 
+                        />
+                        <MessagePreview 
+                            leadName={msgData.lead_name} 
+                            company={msgData.company} 
+                            variants={msgData.variants} 
+                        />
+                    </div>
                 ))}
             </div>
 

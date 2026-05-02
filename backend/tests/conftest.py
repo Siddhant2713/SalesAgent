@@ -45,3 +45,19 @@ def client(db, test_user):
     yield TestClient(app)
     
     app.dependency_overrides.clear()
+
+@pytest.fixture(scope="function")
+def client_no_auth(db):
+    """Client that does NOT override auth — for testing register/login/401 flows."""
+    def override_get_db():
+        try:
+            yield db
+        finally:
+            pass
+    
+    app.dependency_overrides[get_db] = override_get_db
+    
+    yield TestClient(app)
+    
+    app.dependency_overrides.clear()
+

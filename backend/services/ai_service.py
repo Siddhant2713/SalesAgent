@@ -20,7 +20,11 @@ TEMPERATURE = 0.7
 
 def _call_gemini(prompt: str, current_user, response_schema=None, retries: int = 1) -> str:
     """Call Gemini API with optional structured output schema. Returns raw text."""
-    client = genai.Client(api_key=current_user.gemini_api_key)
+    from utils.encryption import decrypt
+    api_key = decrypt(current_user.gemini_api_key) if current_user.gemini_api_key else ""
+    if not api_key:
+        raise ValueError("Gemini API key is not configured.")
+    client = genai.Client(api_key=api_key)
     
     config_kwargs = {
         "system_instruction": SYSTEM_PROMPT,
@@ -67,35 +71,56 @@ def _parse_json(text: str) -> dict:
 
 def generate_messages(lead, current_user) -> dict:
     """
-    Returns dict with keys: friendly, direct, curiosity.
-    Each value is { "subject": str, "body": str }.
+    Returns dict with keys: friendly, direct, curiosity, and optionally _enrichment.
+    Each tone value is { "subject": str, "body": str }.
+    
+    Pipeline:
+      1. Enrich — research the company using Google Search grounding
+      2. Generate — create 3 email variants using the enrichment context
+    
     Uses Gemini structured outputs when available for guaranteed JSON.
     Raises ValueError on parse failure after retry.
     Raises Exception on API error.
     """
-    prompt = build_initial_prompt(lead.name, lead.role, lead.company, current_user.smtp_from_name)
+    # Step 1: Company enrichment (non-blocking — returns {} on failure)
+    from services.enrichment_service import enrich_lead_context
+    enrichment = enrich_lead_context(lead.company, lead.role, current_user)
+    
+    if enrichment:
+        logger.info(f"Enrichment for {lead.company}: stage={enrichment.get('company_stage')}, hook={enrichment.get('best_hook', '')[:60]}...")
+    else:
+        logger.info(f"No enrichment data for {lead.company} — generating without context")
+    
+    # Step 2: Generate emails with enrichment context
+    prompt = build_initial_prompt(lead.name, lead.role, lead.company, current_user.smtp_from_name, context=enrichment)
     logger.debug(f"--- Sending Prompt ---\n{prompt}\n----------------------")
     
     # Try structured output first (guaranteed JSON)
     try:
         raw = _call_gemini(prompt, current_user, response_schema=InitialEmailSet)
         logger.debug(f"--- Raw Response (Structured) ---\n{raw}\n--------------------")
-        return _parse_json(raw)
-    except (TypeError, google_exceptions.InvalidArgument) as e:
-        # Structured output not supported by this model version — fall back
+        result = _parse_json(raw)
+        result["_enrichment"] = enrichment
+        return result
+    except (TypeError, AttributeError, google_exceptions.InvalidArgument) as e:
+        # Structured output not supported by this model/SDK version — fall back
         logger.info(f"Structured output not supported, falling back to raw JSON: {e}")
     
     # Fallback: raw JSON mode with manual parsing + retry
     raw = _call_gemini(prompt, current_user)
     logger.debug(f"--- Raw Response ---\n{raw}\n--------------------")
     try:
-        return _parse_json(raw)
+        result = _parse_json(raw)
+        result["_enrichment"] = enrichment
+        return result
     except (json.JSONDecodeError, KeyError):
         logger.warning(f"Failed to parse JSON for lead {lead.id}. Retrying...")
         raw = _call_gemini(prompt, current_user)
         logger.debug(f"--- Raw Response (Retry) ---\n{raw}\n--------------------")
         try:
-            return _parse_json(raw)
+            result = _parse_json(raw)
+            result["_enrichment"] = enrichment
+            return result
         except (json.JSONDecodeError, KeyError, ValueError) as e:
             raise ValueError(f"Gemini returned unparseable JSON after retry for lead {lead.id}. Raw: {raw}")
 
@@ -110,7 +135,7 @@ def generate_followup(lead, initial_tone: str, followup_tone: str, current_user)
     try:
         raw = _call_gemini(prompt, current_user, response_schema=FollowupEmail)
         return _parse_json(raw)
-    except (TypeError, google_exceptions.InvalidArgument):
+    except (TypeError, AttributeError, google_exceptions.InvalidArgument):
         logger.info("Structured output not supported for followup, falling back")
     
     # Fallback

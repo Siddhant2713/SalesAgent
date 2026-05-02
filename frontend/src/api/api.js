@@ -11,6 +11,14 @@ async function fetchApi(endpoint, options = {}) {
     }
     try {
         const response = await fetch(url, options);
+        
+        // Auto-logout on expired/invalid tokens (skip auth endpoints)
+        if (response.status === 401 && !endpoint.startsWith('/api/auth/')) {
+            localStorage.removeItem('token');
+            window.location.href = '/login';
+            throw new Error('Session expired. Please log in again.');
+        }
+        
         if (!response.ok) {
             let errorMsg = `Error ${response.status}`;
             try {

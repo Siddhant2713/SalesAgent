@@ -10,7 +10,7 @@ class Settings(BaseSettings):
     smtp_from_name: str | None = None
     database_url: str = "sqlite:///../salesagent.db"
     backend_port: int = 8000
-    secret_key: str = "09d25e094faa6ca2556c818166b7a9563b93f7099f6f0f4caa6cf63b88e8d3e7" # hardcoded for MVP
+    secret_key: str  # REQUIRED — must be set via SECRET_KEY in .env (generate with: openssl rand -hex 32)
 
     model_config = {"env_file": "../.env"}
 

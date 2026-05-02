@@ -16,10 +16,14 @@ export default function MessagePreview({ leadName, company, variants }) {
             </div>
             
             <div className="border-b border-gray-200">
-                <nav className="-mb-px flex" aria-label="Tabs">
+                <nav className="-mb-px flex" role="tablist" aria-label="Email tone variants">
                     {['friendly', 'direct', 'curiosity'].map((tone) => (
                         <button
                             key={tone}
+                            role="tab"
+                            id={`tab-${leadName}-${tone}`}
+                            aria-selected={activeTab === tone}
+                            aria-controls={`panel-${leadName}-${tone}`}
                             onClick={() => setActiveTab(tone)}
                             className={`${
                                 activeTab === tone
@@ -33,7 +37,12 @@ export default function MessagePreview({ leadName, company, variants }) {
                 </nav>
             </div>
             
-            <div className="p-4 sm:p-6 bg-white">
+            <div
+                role="tabpanel"
+                id={`panel-${leadName}-${activeTab}`}
+                aria-labelledby={`tab-${leadName}-${activeTab}`}
+                className="p-4 sm:p-6 bg-white"
+            >
                 {variant ? (
                     <>
                         <div className="mb-4">

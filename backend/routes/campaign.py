@@ -13,9 +13,10 @@ from schemas.campaign import GenerateRequest, SendCampaignRequest
 from services.ai_service import generate_messages, generate_followup
 from services.email_service import send_email
 from services.tracking_service import get_followup_tone
-from services.rate_limiter import gemini_limiter
+from services.rate_limiter import gemini_limiter, QuotaExceededError
 from utils.security import get_current_user
 from utils.limiter import limiter
+from google.api_core import exceptions as google_exceptions
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -63,10 +64,14 @@ def generate(request: Request, payload: GenerateRequest, db: Session = Depends(g
             # We must pass current_user to ai_service so it can use their specific API key
             variants = generate_messages(lead, current_user)
             
+            # Extract enrichment data (added by enrichment pipeline)
+            enrichment = variants.pop("_enrichment", {})
+            
             lead_messages_res = {
                 "lead_id": lead.id,
                 "lead_name": lead.name,
                 "company": lead.company,
+                "enrichment": enrichment,
                 "variants": {}
             }
 
@@ -92,8 +97,21 @@ def generate(request: Request, payload: GenerateRequest, db: Session = Depends(g
             messages_response.append(lead_messages_res)
             generated_count += 1
 
+        except QuotaExceededError as e:
+            logger.warning(f"Quota exceeded during generation for lead {lead.id}: {e}")
+            db.rollback()
+            raise HTTPException(status_code=429, detail=f"API quota exceeded: {e}")
+        except google_exceptions.ResourceExhausted as e:
+            logger.warning(f"Gemini rate limit hit for lead {lead.id}: {e}")
+            db.rollback()
+            raise HTTPException(status_code=429, detail="Gemini API rate limit reached. Please wait and try again.")
+        except ValueError as e:
+            logger.error(f"Failed to parse AI response for lead {lead.id}: {e}")
+            db.rollback()
+            raise HTTPException(status_code=502, detail=f"AI response parsing failed: {e}")
         except Exception as e:
-            logger.error(f"Failed to generate for lead {lead.id}: {e}")
+            import traceback
+            logger.error(f"Unexpected error generating for lead {lead.id}: {e}\n{traceback.format_exc()}")
             db.rollback()
             raise HTTPException(status_code=502, detail=f"Gemini API failure: {e}")
 
@@ -114,7 +132,9 @@ def send_campaign(campaign_id: int, payload: SendCampaignRequest, db: Session = 
     if not campaign:
         raise HTTPException(status_code=404, detail="Campaign not found")
 
-    messages = db.query(Message).filter(
+    messages = db.query(Message).options(
+        joinedload(Message.lead)
+    ).filter(
         Message.campaign_id == campaign.id,
         Message.tone == payload.tone,
         Message.sent == False,
@@ -128,7 +148,7 @@ def send_campaign(campaign_id: int, payload: SendCampaignRequest, db: Session = 
     failures = []
 
     for msg in messages:
-        lead = db.query(Lead).filter(Lead.id == msg.lead_id).first()
+        lead = msg.lead
         try:
             send_email(lead.email, msg.subject, msg.body, current_user)
             msg.sent = True
@@ -137,6 +157,13 @@ def send_campaign(campaign_id: int, payload: SendCampaignRequest, db: Session = 
             lead.status = "contacted"
             db.commit()
             sent_count += 1
+        except smtplib.SMTPException as e:
+            logger.error(f"SMTP error sending to {lead.email}: {e}")
+            failures.append({
+                "lead_id": lead.id,
+                "email": lead.email,
+                "error": str(e)
+            })
         except Exception as e:
             logger.error(f"Failed to send email to {lead.email}: {e}")
             failures.append({
