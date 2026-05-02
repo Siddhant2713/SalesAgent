@@ -1,0 +1,63 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# SalesAgent — Multi-stage Production Dockerfile
+# ─────────────────────────────────────────────────────────────────────────────
+# Stage 1: Build the React frontend
+# Stage 2: Serve FastAPI + static frontend with gunicorn
+# ─────────────────────────────────────────────────────────────────────────────
+
+# ── Stage 1: Frontend Build ──────────────────────────────────────────────────
+FROM node:20-alpine AS frontend-build
+
+WORKDIR /app/frontend
+
+COPY frontend/package.json frontend/package-lock.json* ./
+RUN npm ci --silent
+
+COPY frontend/ ./
+
+# Build production assets
+RUN npm run build
+
+# ── Stage 2: Backend + Serve ─────────────────────────────────────────────────
+FROM python:3.12-slim AS production
+
+# System deps
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends gcc && \
+    rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Install Python deps
+COPY backend/requirements.txt ./requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt && \
+    pip install --no-cache-dir gunicorn==22.0.0
+
+# Copy backend code
+COPY backend/ ./
+
+# Copy built frontend into backend static dir
+COPY --from=frontend-build /app/frontend/dist ./static
+
+# Create data directory for SQLite
+RUN mkdir -p /app/data
+
+# Environment
+ENV DATABASE_URL="sqlite:///./data/salesagent.db"
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
+
+# Expose port
+EXPOSE 8000
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=5s --retries=3 \
+    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"
+
+# Run with gunicorn (production ASGI server)
+CMD ["gunicorn", "main:app", \
+     "--worker-class", "uvicorn.workers.UvicornWorker", \
+     "--bind", "0.0.0.0:8000", \
+     "--workers", "2", \
+     "--timeout", "120", \
+     "--access-logfile", "-"]

@@ -2,13 +2,16 @@ import csv
 import io
 import logging
 from typing import List, Optional
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Request
 from sqlalchemy.orm import Session
 
 from database import get_db
 from models.lead import Lead
 from models.campaign import Message
+from models.user import User
 from schemas.lead import LeadCreate, LeadResponse, LeadStatusUpdate
+from utils.security import get_current_user
+from utils.limiter import limiter
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -17,7 +20,8 @@ MAX_FILE_SIZE_BYTES = 1 * 1024 * 1024  # 1 MB
 MAX_ROWS = 500
 
 @router.post("/upload")
-async def upload_leads(file: UploadFile = File(...), db: Session = Depends(get_db)):
+@limiter.limit("10/minute")
+async def upload_leads(request: Request, file: UploadFile = File(...), db: Session = Depends(get_db), current_user: User = Depends(get_current_user)) -> dict:
     if not file.filename.endswith(".csv"):
         raise HTTPException(status_code=400, detail="File must be a .csv")
 
@@ -45,7 +49,6 @@ async def upload_leads(file: UploadFile = File(...), db: Session = Depends(get_d
         if i >= MAX_ROWS:
             break
             
-        # Extract fields matching lowercased headers
         row_data = {k.strip().lower(): v for k, v in row.items() if k}
         name = row_data.get("name", "").strip()
         role = row_data.get("role", "").strip()
@@ -56,20 +59,19 @@ async def upload_leads(file: UploadFile = File(...), db: Session = Depends(get_d
             skipped_invalid += 1
             continue
             
-        # Try validating via pydantic LeadCreate
         try:
             lead_in = LeadCreate(name=name, role=role, company=company, email=email)
         except ValueError:
             skipped_invalid += 1
             continue
 
-        # Check existing
-        existing = db.query(Lead).filter(Lead.email == lead_in.email).first()
+        existing = db.query(Lead).filter(Lead.user_id == current_user.id, Lead.email == lead_in.email).first()
         if existing:
             skipped_duplicates += 1
             continue
             
         new_lead = Lead(
+            user_id=current_user.id,
             name=lead_in.name,
             role=lead_in.role,
             company=lead_in.company,
@@ -95,12 +97,14 @@ async def upload_leads(file: UploadFile = File(...), db: Session = Depends(get_d
     }
 
 @router.post("/manual", response_model=LeadResponse, status_code=201)
-def add_lead_manual(lead_in: LeadCreate, db: Session = Depends(get_db)):
-    existing = db.query(Lead).filter(Lead.email == lead_in.email).first()
+@limiter.limit("20/minute")
+def add_lead_manual(request: Request, lead_in: LeadCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    existing = db.query(Lead).filter(Lead.user_id == current_user.id, Lead.email == lead_in.email).first()
     if existing:
-        raise HTTPException(status_code=409, detail="Email already exists")
+        raise HTTPException(status_code=409, detail="Email already exists in your leads")
         
     new_lead = Lead(
+        user_id=current_user.id,
         name=lead_in.name,
         role=lead_in.role,
         company=lead_in.company,
@@ -113,8 +117,8 @@ def add_lead_manual(lead_in: LeadCreate, db: Session = Depends(get_db)):
     return new_lead
 
 @router.get("", response_model=dict)
-def get_leads(status: Optional[str] = None, skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
-    query = db.query(Lead)
+def get_leads(status: Optional[str] = None, skip: int = 0, limit: int = 100, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)) -> dict:
+    query = db.query(Lead).filter(Lead.user_id == current_user.id)
     if status:
         query = query.filter(Lead.status == status)
         
@@ -127,8 +131,8 @@ def get_leads(status: Optional[str] = None, skip: int = 0, limit: int = 100, db:
     }
 
 @router.patch("/{lead_id}/status", response_model=LeadResponse)
-def update_lead_status(lead_id: int, payload: LeadStatusUpdate, db: Session = Depends(get_db)):
-    lead = db.query(Lead).filter(Lead.id == lead_id).first()
+def update_lead_status(lead_id: int, payload: LeadStatusUpdate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    lead = db.query(Lead).filter(Lead.user_id == current_user.id, Lead.id == lead_id).first()
     if not lead:
         raise HTTPException(status_code=404, detail="Lead not found")
         
@@ -138,13 +142,85 @@ def update_lead_status(lead_id: int, payload: LeadStatusUpdate, db: Session = De
     return lead
 
 @router.delete("/{lead_id}", status_code=204)
-def delete_lead(lead_id: int, db: Session = Depends(get_db)):
-    lead = db.query(Lead).filter(Lead.id == lead_id).first()
+def delete_lead(lead_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)) -> None:
+    lead = db.query(Lead).filter(Lead.user_id == current_user.id, Lead.id == lead_id).first()
     if not lead:
         raise HTTPException(status_code=404, detail="Lead not found")
         
-    # Delete associated messages
     db.query(Message).filter(Message.lead_id == lead.id).delete()
     db.delete(lead)
     db.commit()
     return None
+
+# ── Google Sheets Import ──────────────────────────────────────────────────────
+from pydantic import BaseModel, HttpUrl
+
+class GoogleSheetImport(BaseModel):
+    sheet_url: str  # Google Sheets URL
+
+@router.post("/import/sheets")
+@limiter.limit("5/minute")
+async def import_from_sheets(
+    request: Request,
+    payload: GoogleSheetImport,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+) -> dict:
+    """Import leads from a publicly shared Google Sheets URL."""
+    from services.sheets_service import fetch_leads_from_sheet
+    
+    try:
+        raw_leads = fetch_leads_from_sheet(payload.sheet_url)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    
+    if not raw_leads:
+        raise HTTPException(status_code=422, detail="No valid leads found in the Google Sheet. Ensure columns: name, role, company, email")
+    
+    inserted = 0
+    skipped_duplicates = 0
+    skipped_invalid = 0
+    
+    for raw in raw_leads:
+        # Validate with existing schema
+        try:
+            lead_in = LeadCreate(
+                name=raw["name"],
+                role=raw["role"],
+                company=raw["company"],
+                email=raw["email"]
+            )
+        except (ValueError, Exception):
+            skipped_invalid += 1
+            continue
+        
+        existing = db.query(Lead).filter(
+            Lead.user_id == current_user.id,
+            Lead.email == lead_in.email
+        ).first()
+        
+        if existing:
+            skipped_duplicates += 1
+            continue
+        
+        new_lead = Lead(
+            user_id=current_user.id,
+            name=lead_in.name,
+            role=lead_in.role,
+            company=lead_in.company,
+            email=lead_in.email,
+            status="new"
+        )
+        db.add(new_lead)
+        inserted += 1
+    
+    db.commit()
+    
+    return {
+        "source": "google_sheets",
+        "inserted": inserted,
+        "skipped_duplicates": skipped_duplicates,
+        "skipped_invalid": skipped_invalid,
+        "total_found": len(raw_leads)
+    }
+

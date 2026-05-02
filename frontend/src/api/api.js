@@ -2,6 +2,13 @@ const BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
 
 async function fetchApi(endpoint, options = {}) {
     const url = `${BASE}${endpoint}`;
+    const token = localStorage.getItem('token');
+    if (token) {
+        options.headers = {
+            ...options.headers,
+            'Authorization': `Bearer ${token}`
+        };
+    }
     try {
         const response = await fetch(url, options);
         if (!response.ok) {
@@ -98,3 +105,43 @@ export async function getAnalytics() {
 export async function getQuota() {
     return fetchApi("/api/analytics/quota");
 }
+
+export async function loginUser(email, password) {
+    const formData = new URLSearchParams();
+    formData.append('username', email);
+    formData.append('password', password);
+    return fetchApi("/api/auth/login", {
+        method: "POST",
+        headers: {"Content-Type": "application/x-www-form-urlencoded"},
+        body: formData.toString()
+    });
+}
+
+export async function registerUser(email, password) {
+    return fetchApi("/api/auth/register", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({email, password})
+    });
+}
+
+export async function getUserSettings() {
+    return fetchApi("/api/user/settings");
+}
+
+export async function updateUserSettings(settings) {
+    return fetchApi("/api/user/settings", {
+        method: "PATCH",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify(settings)
+    });
+}
+
+export async function importFromSheets(sheetUrl) {
+    return fetchApi("/api/leads/import/sheets", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({ sheet_url: sheetUrl })
+    });
+}
+

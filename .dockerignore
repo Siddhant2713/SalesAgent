@@ -1,0 +1,29 @@
+# ─── Docker Ignore ─────────────────────────────────────────────────────────
+# Prevents bloating the Docker build context
+
+# Virtual environments
+backend/venv/
+frontend/node_modules/
+
+# Database files (will be mounted as volumes)
+*.db
+*.sqlite
+*.sqlite3
+
+# Python caches
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+
+# IDE & OS
+.git/
+.gitignore
+.env
+.env.example
+*.md
+.vscode/
+.idea/
+
+# Build artifacts
+frontend/dist/

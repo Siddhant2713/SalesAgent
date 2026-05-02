@@ -5,10 +5,10 @@ export default function LeadTable({ leads, onLeadDeleted, onLeadStatusUpdated })
         return <div className="text-gray-500 py-4">No leads found.</div>;
     }
 
-    const statusColors = {
-        new: 'bg-gray-100 text-gray-800',
-        contacted: 'bg-blue-100 text-blue-800',
-        replied: 'bg-green-100 text-green-800'
+    const statusConfig = {
+        new: { color: 'bg-gray-100 text-gray-800', icon: '⏳' },
+        contacted: { color: 'bg-blue-100 text-blue-800', icon: '✉️' },
+        replied: { color: 'bg-green-100 text-green-800', icon: '✅' }
     };
 
     return (
@@ -34,13 +34,15 @@ export default function LeadTable({ leads, onLeadDeleted, onLeadStatusUpdated })
                             <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">{lead.company}</td>
                             <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">{lead.email}</td>
                             <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
-                                <span className={`inline-flex rounded-full px-2 text-xs font-semibold leading-5 ${statusColors[lead.status]}`}>
-                                    {lead.status}
+                                <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold leading-5 ${statusConfig[lead.status].color}`}>
+                                    <span aria-hidden="true">{statusConfig[lead.status].icon}</span>
+                                    <span>{lead.status}</span>
                                 </span>
                             </td>
                             <td className="relative whitespace-nowrap py-4 pl-3 pr-4 text-right text-sm font-medium sm:pr-6 space-x-2">
                                 {onLeadStatusUpdated && lead.status === 'contacted' && (
                                     <button 
+                                        aria-label={`Mark ${lead.name} as replied`}
                                         onClick={() => onLeadStatusUpdated(lead.id, 'replied')}
                                         className="text-indigo-600 hover:text-indigo-900 mr-2"
                                     >
@@ -49,6 +51,7 @@ export default function LeadTable({ leads, onLeadDeleted, onLeadStatusUpdated })
                                 )}
                                 {onLeadDeleted && (
                                     <button 
+                                        aria-label={`Delete lead ${lead.name}`}
                                         onClick={() => onLeadDeleted(lead.id)}
                                         className="text-red-600 hover:text-red-900"
                                     >

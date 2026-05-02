@@ -1,43 +1,45 @@
 import logging
-from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.orm import Session
-from sqlalchemy.sql import func
+from fastapi import APIRouter, Depends, HTTPException, Request
+from sqlalchemy.orm import Session, joinedload
+from sqlalchemy import func, case, and_
 from typing import List
 import smtplib
 
 from database import get_db
 from models.lead import Lead
 from models.campaign import Campaign, Message
+from models.user import User
 from schemas.campaign import GenerateRequest, SendCampaignRequest
 from services.ai_service import generate_messages, generate_followup
 from services.email_service import send_email
 from services.tracking_service import get_followup_tone
 from services.rate_limiter import gemini_limiter
+from utils.security import get_current_user
+from utils.limiter import limiter
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
 @router.post("/generate")
-def generate(payload: GenerateRequest, db: Session = Depends(get_db)):
-    leads = db.query(Lead).filter(Lead.id.in_(payload.lead_ids)).all()
+@limiter.limit("5/minute")
+def generate(request: Request, payload: GenerateRequest, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)) -> dict:
+    if not current_user.gemini_api_key:
+        raise HTTPException(status_code=400, detail="Please configure your Gemini API Key in Settings first.")
+        
+    leads = db.query(Lead).filter(Lead.user_id == current_user.id, Lead.id.in_(payload.lead_ids)).all()
     if len(leads) != len(payload.lead_ids):
-        raise HTTPException(status_code=404, detail="One or more leads not found")
+        raise HTTPException(status_code=404, detail="One or more leads not found or you don't have access")
 
-    # Each lead costs 1 API call (all 3 tones in one call)
     calls_needed = len(leads)
     remaining = gemini_limiter.daily_remaining
 
     if calls_needed > remaining:
         raise HTTPException(
             status_code=429,
-            detail=(
-                f"Insufficient daily API quota. Need {calls_needed} calls, "
-                f"only {remaining} remaining today (resets at midnight). "
-                f"Reduce your lead selection to {remaining} or fewer."
-            )
+            detail=(f"Insufficient daily API quota. Need {calls_needed} calls, only {remaining} remaining today.")
         )
 
-    campaign = Campaign(name=payload.campaign_name)
+    campaign = Campaign(user_id=current_user.id, name=payload.campaign_name)
     db.add(campaign)
     db.commit()
     db.refresh(campaign)
@@ -55,10 +57,11 @@ def generate(payload: GenerateRequest, db: Session = Depends(get_db)):
 
         if existing:
             skipped_count += 1
-            continue  # Do not call Gemini again
+            continue
 
         try:
-            variants = generate_messages(lead)
+            # We must pass current_user to ai_service so it can use their specific API key
+            variants = generate_messages(lead, current_user)
             
             lead_messages_res = {
                 "lead_id": lead.id,
@@ -92,9 +95,6 @@ def generate(payload: GenerateRequest, db: Session = Depends(get_db)):
         except Exception as e:
             logger.error(f"Failed to generate for lead {lead.id}: {e}")
             db.rollback()
-            # If Anthropic/Gemini fails, we might return 502, but spec says sequential so we shouldn't abort all unless it's a hard fail.
-            # "Process leads sequentially (not in parallel) to avoid rate-limit issues with Anthropic API."
-            # The spec says "Errors: 502 — Anthropic API failure (include error detail)." So we raise.
             raise HTTPException(status_code=502, detail=f"Gemini API failure: {e}")
 
     return {
@@ -106,8 +106,11 @@ def generate(payload: GenerateRequest, db: Session = Depends(get_db)):
     }
 
 @router.post("/{campaign_id}/send")
-def send_campaign(campaign_id: int, payload: SendCampaignRequest, db: Session = Depends(get_db)):
-    campaign = db.query(Campaign).filter(Campaign.id == campaign_id).first()
+def send_campaign(campaign_id: int, payload: SendCampaignRequest, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)) -> dict:
+    if not current_user.smtp_password or not current_user.smtp_username:
+        raise HTTPException(status_code=400, detail="Please configure your SMTP Settings first.")
+
+    campaign = db.query(Campaign).filter(Campaign.user_id == current_user.id, Campaign.id == campaign_id).first()
     if not campaign:
         raise HTTPException(status_code=404, detail="Campaign not found")
 
@@ -127,14 +130,14 @@ def send_campaign(campaign_id: int, payload: SendCampaignRequest, db: Session = 
     for msg in messages:
         lead = db.query(Lead).filter(Lead.id == msg.lead_id).first()
         try:
-            send_email(lead.email, msg.subject, msg.body)
+            send_email(lead.email, msg.subject, msg.body, current_user)
             msg.sent = True
             msg.sent_at = func.now()
             msg.is_selected = True
             lead.status = "contacted"
             db.commit()
             sent_count += 1
-        except smtplib.SMTPException as e:
+        except Exception as e:
             logger.error(f"Failed to send email to {lead.email}: {e}")
             failures.append({
                 "lead_id": lead.id,
@@ -149,12 +152,11 @@ def send_campaign(campaign_id: int, payload: SendCampaignRequest, db: Session = 
     }
 
 @router.post("/{campaign_id}/followup")
-def followup(campaign_id: int, db: Session = Depends(get_db)):
-    campaign = db.query(Campaign).filter(Campaign.id == campaign_id).first()
+def followup(campaign_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)) -> dict:
+    campaign = db.query(Campaign).filter(Campaign.user_id == current_user.id, Campaign.id == campaign_id).first()
     if not campaign:
         raise HTTPException(status_code=404, detail="Campaign not found")
 
-    # Find leads in this campaign with status contacted (sent but not replied)
     contacted_leads = db.query(Lead).join(Message).filter(
         Message.campaign_id == campaign.id,
         Message.message_type == "initial",
@@ -189,13 +191,11 @@ def followup(campaign_id: int, db: Session = Depends(get_db)):
         initial_tone = initial_msg.tone
         followup_tone = get_followup_tone(initial_tone)
 
-        # Quota check
         if gemini_limiter.daily_remaining < 1:
-            logger.warning("Quota exhausted during followups")
             break
 
         try:
-            variant = generate_followup(lead, initial_tone, followup_tone)
+            variant = generate_followup(lead, initial_tone, followup_tone, current_user)
             followup_msg = Message(
                 lead_id=lead.id,
                 campaign_id=campaign.id,
@@ -210,21 +210,15 @@ def followup(campaign_id: int, db: Session = Depends(get_db)):
             db.commit()
 
             try:
-                send_email(lead.email, followup_msg.subject, followup_msg.body)
+                send_email(lead.email, followup_msg.subject, followup_msg.body, current_user)
                 followup_msg.sent = True
                 followup_msg.sent_at = func.now()
                 db.commit()
                 followups_sent += 1
-            except smtplib.SMTPException as e:
-                logger.error(f"Failed to send follow-up to {lead.email}: {e}")
-                failures.append({
-                    "lead_id": lead.id,
-                    "email": lead.email,
-                    "error": str(e)
-                })
+            except Exception as e:
+                failures.append({"lead_id": lead.id, "email": lead.email, "error": str(e)})
 
         except Exception as e:
-            logger.error(f"Failed to generate follow-up for lead {lead.id}: {e}")
             continue
 
     return {
@@ -234,40 +228,45 @@ def followup(campaign_id: int, db: Session = Depends(get_db)):
     }
 
 @router.get("")
-def get_campaigns(db: Session = Depends(get_db)):
-    campaigns = db.query(Campaign).order_by(Campaign.id.desc()).all()
+def get_campaigns(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)) -> List[dict]:
+    campaign_stats = db.query(
+        Campaign.id,
+        Campaign.name,
+        Campaign.created_at,
+        func.count(func.distinct(Message.lead_id)).label("lead_count"),
+        func.count(func.distinct(case((and_(Message.sent == True, Message.message_type == "initial"), Message.lead_id)))).label("sent_count"),
+        func.count(func.distinct(case((and_(Message.sent == True, Lead.status == "replied"), Lead.id)))).label("reply_count")
+    ).outerjoin(Message, Message.campaign_id == Campaign.id)\
+     .outerjoin(Lead, Lead.id == Message.lead_id)\
+     .filter(Campaign.user_id == current_user.id)\
+     .group_by(Campaign.id)\
+     .order_by(Campaign.id.desc()).all()
+
     res = []
-    for c in campaigns:
-        # Get stats
-        leads_count = db.query(Message.lead_id).filter(Message.campaign_id == c.id).distinct().count()
-        sent_count = db.query(Message.lead_id).filter(Message.campaign_id == c.id, Message.sent == True, Message.message_type == "initial").distinct().count()
-        # Reply count for this campaign... leads that are replied and were contacted in this campaign
-        reply_count = db.query(Lead).join(Message).filter(Message.campaign_id == c.id, Message.sent == True, Lead.status == "replied").distinct().count()
-        
+    for c in campaign_stats:
         res.append({
             "id": c.id,
             "name": c.name,
             "created_at": c.created_at,
-            "lead_count": leads_count,
-            "sent_count": sent_count,
-            "reply_count": reply_count
+            "lead_count": c.lead_count,
+            "sent_count": c.sent_count,
+            "reply_count": c.reply_count
         })
     return res
 
 @router.get("/{campaign_id}/messages")
-def get_campaign_messages(campaign_id: int, db: Session = Depends(get_db)):
-    campaign = db.query(Campaign).filter(Campaign.id == campaign_id).first()
+def get_campaign_messages(campaign_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)) -> List[dict]:
+    campaign = db.query(Campaign).filter(Campaign.user_id == current_user.id, Campaign.id == campaign_id).first()
     if not campaign:
         raise HTTPException(status_code=404, detail="Campaign not found")
 
-    messages = db.query(Message).filter(Message.campaign_id == campaign.id).all()
+    messages = db.query(Message).options(joinedload(Message.lead)).filter(Message.campaign_id == campaign.id).all()
     res = []
     for m in messages:
-        lead = db.query(Lead).filter(Lead.id == m.lead_id).first()
         res.append({
             "lead_id": m.lead_id,
-            "lead_name": lead.name,
-            "email": lead.email,
+            "lead_name": m.lead.name,
+            "email": m.lead.email,
             "tone": m.tone,
             "message_type": m.message_type,
             "subject": m.subject,

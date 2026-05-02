@@ -52,18 +52,18 @@ export default function Dashboard() {
         }
     };
 
-    if (loading) return <div className="p-8 text-center text-gray-500">Loading dashboard...</div>;
+    if (loading) return <div role="status" aria-live="polite" className="p-8 text-center text-gray-500">Loading dashboard...</div>;
 
     return (
         <div className="space-y-8">
             <div className="flex justify-between items-center">
                 <h1 className="text-2xl font-bold text-gray-900">Analytics Dashboard</h1>
-                <button onClick={loadData} className="text-indigo-600 hover:text-indigo-900 text-sm font-medium">
+                <button aria-label="Refresh Dashboard Data" onClick={loadData} className="text-indigo-600 hover:text-indigo-900 text-sm font-medium">
                     Refresh Data
                 </button>
             </div>
 
-            {error && <div className="bg-red-50 p-4 rounded-md text-red-800">{error}</div>}
+            {error && <div role="alert" aria-live="assertive" className="bg-red-50 p-4 rounded-md text-red-800">{error}</div>}
 
             {stats && (
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
@@ -103,7 +103,7 @@ export default function Dashboard() {
                                     <td className="px-6 py-4 text-sm text-gray-500">{c.sent_count}</td>
                                     <td className="px-6 py-4 text-sm text-gray-500">{c.reply_count}</td>
                                     <td className="px-6 py-4 text-sm text-right font-medium">
-                                        <button onClick={() => handleSendFollowups(c.id)} className="text-indigo-600 hover:text-indigo-900">
+                                        <button aria-label={`Send followups for campaign ${c.name}`} onClick={() => handleSendFollowups(c.id)} className="text-indigo-600 hover:text-indigo-900">
                                             Send Followups
                                         </button>
                                     </td>
