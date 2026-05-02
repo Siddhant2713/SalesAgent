@@ -17,6 +17,8 @@ def get_me(current_user: User = Depends(get_current_user)) -> UserResponse:
 def get_settings(current_user: User = Depends(get_current_user)) -> dict:
     return {
         "gemini_api_key": decrypt(current_user.gemini_api_key) if current_user.gemini_api_key else "",
+        "smtp_host": current_user.smtp_host or "smtp.gmail.com",
+        "smtp_port": current_user.smtp_port or 587,
         "smtp_username": current_user.smtp_username or "",
         "smtp_password": decrypt(current_user.smtp_password) if current_user.smtp_password else "",
         "smtp_from_name": current_user.smtp_from_name or "",

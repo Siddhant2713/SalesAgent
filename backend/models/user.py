@@ -11,6 +11,8 @@ class User(Base):
     
     # User-specific configurations
     gemini_api_key = Column(String, nullable=True)
+    smtp_host = Column(String, nullable=True, default="smtp.gmail.com")
+    smtp_port = Column(Integer, nullable=True, default=587)
     smtp_username = Column(String, nullable=True)
     smtp_password = Column(String, nullable=True)
     smtp_from_name = Column(String, nullable=True)
