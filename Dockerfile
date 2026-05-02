@@ -48,17 +48,18 @@ ENV DATABASE_URL="sqlite:///./data/salesagent.db"
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 
-# Expose port
-EXPOSE 8000
+# Expose port (HF Spaces uses 7860, others use 8000)
+ENV PORT=7860
+EXPOSE 7860
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=5s --retries=3 \
-    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"
+    CMD python -c "import os; import urllib.request; urllib.request.urlopen(f'http://localhost:{os.environ.get(\"PORT\",7860)}/health')"
 
-# Run with gunicorn (production ASGI server)
-CMD ["gunicorn", "main:app", \
-     "--worker-class", "uvicorn.workers.UvicornWorker", \
-     "--bind", "0.0.0.0:8000", \
-     "--workers", "2", \
-     "--timeout", "120", \
-     "--access-logfile", "-"]
+# Run with gunicorn — uses $PORT for platform compatibility
+CMD gunicorn main:app \
+     --worker-class uvicorn.workers.UvicornWorker \
+     --bind 0.0.0.0:$PORT \
+     --workers 2 \
+     --timeout 120 \
+     --access-logfile -
