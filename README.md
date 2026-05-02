@@ -1,4 +1,14 @@
-# SalesAgent V1
+---
+title: SalesAgent
+emoji: 📧
+colorFrom: indigo
+colorTo: blue
+sdk: docker
+app_port: 7860
+pinned: false
+---
+
+# SalesAgent V2
 
 ## 1. What it does
 SalesAgent is a smart cold email outreach system. It ingests leads from a CSV, uses Google's Gemini AI to automatically generate 3 personalized email variants (friendly, direct, curiosity), and sends the selected variant via your personal Gmail. It also tracks replies and automatically generates and sends follow-ups to non-responders using a different tone.
