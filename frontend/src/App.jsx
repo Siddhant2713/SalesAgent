@@ -1,52 +1,74 @@
-import React from 'react';
-import { BrowserRouter, Routes, Route, Link, Navigate, useLocation } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './AuthContext';
+import { getUserSettings } from './api/api';
+
 import Login from './pages/Login';
 import UploadPage from './pages/UploadPage';
 import CampaignPage from './pages/CampaignPage';
 import Dashboard from './pages/Dashboard';
 import Settings from './pages/Settings';
+import Onboarding from './pages/Onboarding';
 
-function NavBar() {
-  const location = useLocation();
-  const { logout } = useAuth();
-  const navClass = (path) => 
-    `px-3 py-2 rounded-md text-sm font-medium ${location.pathname === path ? 'bg-gray-900 text-white' : 'text-gray-300 hover:bg-gray-700 hover:text-white'}`;
-
-  return (
-    <nav className="bg-gray-800">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between h-16">
-          <div className="flex items-center">
-            <div className="flex-shrink-0">
-              <span className="text-white font-bold text-xl">SalesAgent</span>
-            </div>
-            <div className="hidden md:block">
-              <div className="ml-10 flex items-baseline space-x-4">
-                <Link to="/" className={navClass('/')}>Upload Leads</Link>
-                <Link to="/campaign" className={navClass('/campaign')}>Campaigns</Link>
-                <Link to="/dashboard" className={navClass('/dashboard')}>Dashboard</Link>
-                <Link to="/settings" className={navClass('/settings')}>Settings</Link>
-              </div>
-            </div>
-          </div>
-          <div className="flex items-center">
-            <button onClick={logout} className="text-gray-300 hover:text-white px-3 py-2 rounded-md text-sm font-medium">Logout</button>
-          </div>
-        </div>
-      </div>
-    </nav>
-  );
-}
+import Sidebar from './components/Sidebar';
 
 function AuthenticatedLayout() {
+  const [checking, setChecking] = useState(true);
+  const [needsOnboarding, setNeedsOnboarding] = useState(false);
+
+  useEffect(() => {
+    const isDone = localStorage.getItem('salesagent_onboarded');
+    if (isDone) {
+      setChecking(false);
+      return;
+    }
+
+    getUserSettings()
+      .then(settings => {
+        if (!settings.gemini_api_key && !settings.smtp_username) {
+          setNeedsOnboarding(true);
+        } else {
+          // They already have settings, maybe from an old session
+          localStorage.setItem('salesagent_onboarded', '1');
+        }
+      })
+      .catch(() => {
+        // If settings fail to load, fail open
+      })
+      .finally(() => {
+        setChecking(false);
+      });
+  }, []);
+
+  if (checking) {
+    return (
+      <div style={{ minHeight: '100vh', background: 'var(--bg-base)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div className="sa-pulse" style={{ height: '4px', width: '100px', background: 'var(--bg-elevated)', borderRadius: '2px' }} />
+      </div>
+    );
+  }
+
+  if (needsOnboarding) {
+    return <Onboarding onComplete={() => {
+      localStorage.setItem('salesagent_onboarded', '1');
+      setNeedsOnboarding(false);
+    }} />;
+  }
+
   return (
-    <div className="min-h-screen bg-gray-100">
-      <a href="#main-content" className="sr-only focus:not-sr-only focus:absolute focus:top-0 focus:left-0 focus:z-50 focus:bg-white focus:text-blue-600 focus:p-4">
+    <div style={{ display: 'flex', minHeight: '100vh', background: 'var(--bg-base)' }}>
+      <a href="#main-content" className="sr-only focus:not-sr-only" style={{ position: 'absolute', top: 0, left: 0, zIndex: 100, background: 'var(--bg-surface)', padding: '12px' }}>
         Skip to main content
       </a>
-      <NavBar />
-      <main id="main-content" className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
+      
+      <Sidebar />
+      
+      <main id="main-content" style={{ 
+        flex: 1, 
+        marginLeft: '220px', 
+        padding: '32px 40px',
+        boxSizing: 'border-box'
+      }}>
         <Routes>
           <Route path="/" element={<UploadPage />} />
           <Route path="/campaign" element={<CampaignPage />} />

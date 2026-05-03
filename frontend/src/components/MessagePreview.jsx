@@ -2,22 +2,31 @@ import React, { useState } from 'react';
 
 export default function MessagePreview({ leadName, company, variants }) {
     const [activeTab, setActiveTab] = useState('friendly');
-    
+
     if (!variants) return null;
 
     const variant = variants[activeTab];
+    const tones = ['friendly', 'direct', 'curiosity'];
 
     return (
-        <div className="bg-white shadow sm:rounded-lg mb-6 overflow-hidden border border-gray-200">
-            <div className="px-4 py-5 sm:px-6 bg-gray-50 flex justify-between items-center border-b border-gray-200">
-                <h3 className="text-lg leading-6 font-medium text-gray-900">
-                    {leadName} <span className="text-gray-500 text-sm font-normal">@ {company}</span>
-                </h3>
+        <div className="sa-card" style={{ overflow: 'hidden', marginBottom: 0 }}>
+            {/* Header */}
+            <div style={{
+                padding: '14px 18px',
+                borderBottom: '1px solid var(--border-subtle)'
+            }}>
+                <span style={{ fontSize: '14px', fontWeight: 500, color: 'var(--text-primary)' }}>
+                    {leadName}
+                </span>
+                <span style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
+                    {' '}at {company}
+                </span>
             </div>
-            
-            <div className="border-b border-gray-200">
-                <nav className="-mb-px flex" role="tablist" aria-label="Email tone variants">
-                    {['friendly', 'direct', 'curiosity'].map((tone) => (
+
+            {/* Tab bar */}
+            <div style={{ borderBottom: '1px solid var(--border-subtle)' }}>
+                <nav style={{ display: 'flex', marginBottom: '-1px' }} role="tablist" aria-label="Email tone variants">
+                    {tones.map((tone) => (
                         <button
                             key={tone}
                             role="tab"
@@ -25,39 +34,73 @@ export default function MessagePreview({ leadName, company, variants }) {
                             aria-selected={activeTab === tone}
                             aria-controls={`panel-${leadName}-${tone}`}
                             onClick={() => setActiveTab(tone)}
-                            className={`${
-                                activeTab === tone
-                                    ? 'border-indigo-500 text-indigo-600'
-                                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                            } w-1/3 py-3 px-1 text-center border-b-2 font-medium text-sm capitalize transition-colors`}
+                            style={{
+                                flex: 1,
+                                padding: '10px 18px',
+                                fontSize: '13px',
+                                fontWeight: 500,
+                                textTransform: 'capitalize',
+                                background: 'none',
+                                border: 'none',
+                                borderBottom: activeTab === tone ? '2px solid var(--blue-primary)' : '2px solid transparent',
+                                color: activeTab === tone ? 'var(--text-primary)' : 'var(--text-secondary)',
+                                cursor: 'pointer',
+                                fontFamily: 'var(--font-sans)',
+                                transition: 'color 0.15s, border-color 0.15s'
+                            }}
+                            onMouseEnter={(e) => {
+                                if (activeTab !== tone) e.currentTarget.style.color = 'var(--text-primary)';
+                            }}
+                            onMouseLeave={(e) => {
+                                if (activeTab !== tone) e.currentTarget.style.color = 'var(--text-secondary)';
+                            }}
                         >
                             {tone}
                         </button>
                     ))}
                 </nav>
             </div>
-            
+
+            {/* Tab panel */}
             <div
                 role="tabpanel"
                 id={`panel-${leadName}-${activeTab}`}
                 aria-labelledby={`tab-${leadName}-${activeTab}`}
-                className="p-4 sm:p-6 bg-white"
+                style={{ padding: '18px' }}
             >
                 {variant ? (
                     <>
-                        <div className="mb-4">
-                            <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Subject</span>
-                            <p className="mt-1 font-bold text-gray-900">{variant.subject}</p>
-                        </div>
                         <div>
-                            <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Body</span>
-                            <div className="mt-1 text-gray-700 whitespace-pre-wrap font-sans text-sm border p-3 rounded bg-gray-50">
+                            <span className="sa-label">Subject</span>
+                            <p style={{
+                                fontSize: '14px',
+                                color: 'var(--text-primary)',
+                                fontWeight: 500,
+                                padding: '8px 0',
+                                margin: 0
+                            }}>
+                                {variant.subject}
+                            </p>
+                        </div>
+                        <hr className="sa-divider" />
+                        <div>
+                            <span className="sa-label">Body</span>
+                            <p style={{
+                                fontSize: '13px',
+                                color: 'var(--text-secondary)',
+                                whiteSpace: 'pre-wrap',
+                                lineHeight: 1.6,
+                                padding: '8px 0',
+                                margin: 0
+                            }}>
                                 {variant.body}
-                            </div>
+                            </p>
                         </div>
                     </>
                 ) : (
-                    <div className="text-gray-500 italic">No variant generated for this tone.</div>
+                    <div style={{ color: 'var(--text-muted)', fontSize: '13px', fontStyle: 'italic' }}>
+                        No variant generated for this tone.
+                    </div>
                 )}
             </div>
         </div>

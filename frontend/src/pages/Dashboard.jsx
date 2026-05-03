@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { getAnalytics, getLeads, updateLeadStatus, sendFollowups, getCampaigns } from '../api/api';
 import StatsCard from '../components/StatsCard';
 import LeadTable from '../components/LeadTable';
+import PageHeader from '../components/PageHeader';
 
 export default function Dashboard() {
     const [stats, setStats] = useState(null);
@@ -52,71 +53,158 @@ export default function Dashboard() {
         }
     };
 
-    if (loading) return <div role="status" aria-live="polite" className="p-8 text-center text-gray-500">Loading dashboard...</div>;
+    if (loading) return (
+        <div role="status" aria-live="polite" style={{ padding: '32px', textAlign: 'center', color: 'var(--text-muted)' }}>
+            Loading dashboard...
+        </div>
+    );
+
+    const thStyle = {
+        fontSize: '11px',
+        color: 'var(--text-muted)',
+        textTransform: 'uppercase',
+        letterSpacing: '0.06em',
+        fontWeight: 500,
+        padding: '10px 16px',
+        textAlign: 'left'
+    };
+
+    const tdStyle = {
+        padding: '12px 16px',
+        fontSize: '13px',
+        color: 'var(--text-secondary)'
+    };
 
     return (
-        <div className="space-y-8">
-            <div className="flex justify-between items-center">
-                <h1 className="text-2xl font-bold text-gray-900">Analytics Dashboard</h1>
-                <button aria-label="Refresh Dashboard Data" onClick={loadData} className="text-indigo-600 hover:text-indigo-900 text-sm font-medium">
-                    Refresh Data
-                </button>
-            </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
+            <PageHeader
+                title="Dashboard"
+                action={
+                    <button aria-label="Refresh Dashboard Data" onClick={loadData} className="sa-btn-ghost">
+                        Refresh Data
+                    </button>
+                }
+            />
 
-            {error && <div role="alert" aria-live="assertive" className="bg-red-50 p-4 rounded-md text-red-800">{error}</div>}
+            {error && (
+                <div role="alert" aria-live="assertive" style={{
+                    borderLeft: '3px solid #e53e3e',
+                    background: 'var(--bg-elevated)',
+                    padding: '10px 14px',
+                    borderRadius: '4px',
+                    color: '#fc8181',
+                    fontSize: '13px'
+                }}>
+                    {error}
+                </div>
+            )}
 
             {stats && (
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                <div style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+                    gap: '24px'
+                }}>
                     <StatsCard title="Total Leads" value={stats.total_leads} />
                     <StatsCard title="Emails Sent" value={stats.emails_sent} />
                     <StatsCard title="Replies" value={stats.replies} subtitle={`Rate: ${stats.reply_rate}%`} />
-                    <StatsCard 
-                        title="Best Tone" 
-                        value={stats.best_tone ? stats.best_tone.charAt(0).toUpperCase() + stats.best_tone.slice(1) : '-'} 
+                    <StatsCard
+                        title="Best Tone"
+                        value={stats.best_tone ? stats.best_tone.charAt(0).toUpperCase() + stats.best_tone.slice(1) : '-'}
                         subtitle={stats.best_tone ? `Rate: ${stats.tone_stats[stats.best_tone]?.reply_rate}%` : ''}
                     />
                 </div>
             )}
 
-            <div className="bg-white shadow sm:rounded-lg mb-8">
-                <div className="px-4 py-5 sm:px-6 border-b border-gray-200">
-                    <h3 className="text-lg leading-6 font-medium text-gray-900">Campaigns</h3>
+            {/* Campaigns Table */}
+            <div>
+                <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    marginBottom: '16px'
+                }}>
+                    <h3 style={{
+                        fontSize: '14px',
+                        fontWeight: 500,
+                        color: 'var(--text-primary)',
+                        margin: 0
+                    }}>
+                        Campaigns
+                    </h3>
                 </div>
-                <div className="overflow-x-auto">
-                    <table className="min-w-full divide-y divide-gray-200">
-                        <thead className="bg-gray-50">
-                            <tr>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">ID / Name</th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Leads</th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Sent</th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Replies</th>
-                                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody className="bg-white divide-y divide-gray-200">
-                            {campaigns.length === 0 ? (
-                                <tr><td colSpan="5" className="px-6 py-4 text-center text-sm text-gray-500">No campaigns found.</td></tr>
-                            ) : campaigns.map(c => (
-                                <tr key={c.id}>
-                                    <td className="px-6 py-4 text-sm font-medium text-gray-900">{c.id} - {c.name}</td>
-                                    <td className="px-6 py-4 text-sm text-gray-500">{c.lead_count}</td>
-                                    <td className="px-6 py-4 text-sm text-gray-500">{c.sent_count}</td>
-                                    <td className="px-6 py-4 text-sm text-gray-500">{c.reply_count}</td>
-                                    <td className="px-6 py-4 text-sm text-right font-medium">
-                                        <button aria-label={`Send followups for campaign ${c.name}`} onClick={() => handleSendFollowups(c.id)} className="text-indigo-600 hover:text-indigo-900">
-                                            Send Followups
-                                        </button>
-                                    </td>
+                <div className="sa-card" style={{ overflow: 'hidden' }}>
+                    <div style={{ overflowX: 'auto' }}>
+                        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                            <thead>
+                                <tr style={{ background: 'var(--bg-elevated)', borderBottom: '1px solid var(--border-subtle)' }}>
+                                    <th style={thStyle}>ID / Name</th>
+                                    <th style={thStyle}>Leads</th>
+                                    <th style={thStyle}>Sent</th>
+                                    <th style={thStyle}>Replies</th>
+                                    <th style={{ ...thStyle, textAlign: 'right' }}>Actions</th>
                                 </tr>
-                            ))}
-                        </tbody>
-                    </table>
+                            </thead>
+                            <tbody>
+                                {campaigns.length === 0 ? (
+                                    <tr>
+                                        <td colSpan="5" style={{ padding: '24px', textAlign: 'center', fontSize: '13px', color: 'var(--text-muted)' }}>
+                                            No campaigns found.
+                                        </td>
+                                    </tr>
+                                ) : campaigns.map((c, index) => (
+                                    <tr key={c.id} style={{
+                                        background: 'var(--bg-surface)',
+                                        borderBottom: index < campaigns.length - 1 ? '1px solid var(--border-subtle)' : 'none',
+                                        transition: 'background 0.1s'
+                                    }}
+                                    onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--bg-elevated)'; }}
+                                    onMouseLeave={(e) => { e.currentTarget.style.background = 'var(--bg-surface)'; }}>
+                                        <td style={{ ...tdStyle, color: 'var(--text-primary)', fontWeight: 500 }}>{c.id} - {c.name}</td>
+                                        <td style={tdStyle}>{c.lead_count}</td>
+                                        <td style={tdStyle}>{c.sent_count}</td>
+                                        <td style={tdStyle}>{c.reply_count}</td>
+                                        <td style={{ ...tdStyle, textAlign: 'right' }}>
+                                            <button
+                                                aria-label={`Send followups for campaign ${c.name}`}
+                                                onClick={() => handleSendFollowups(c.id)}
+                                                style={{
+                                                    background: 'none',
+                                                    border: 'none',
+                                                    color: 'var(--blue-primary)',
+                                                    fontSize: '12px',
+                                                    cursor: 'pointer',
+                                                    fontFamily: 'var(--font-sans)',
+                                                    transition: 'color 0.15s'
+                                                }}
+                                                onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--blue-hover)'; }}
+                                                onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--blue-primary)'; }}
+                                            >
+                                                Send Followups
+                                            </button>
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             </div>
 
+            {/* Lead Tracker */}
             <div>
-                <h2 className="text-xl font-bold text-gray-900 mb-4">Lead Status Tracker</h2>
-                <p className="text-sm text-gray-500 mb-4">Manually mark contacted leads as "Replied" when they respond via email.</p>
+                <div style={{ marginBottom: '16px' }}>
+                    <h3 style={{
+                        fontSize: '14px',
+                        fontWeight: 500,
+                        color: 'var(--text-primary)',
+                        margin: '0 0 4px 0'
+                    }}>
+                        Lead Tracker
+                    </h3>
+                    <p style={{ fontSize: '12px', color: 'var(--text-secondary)', margin: 0 }}>
+                        Mark leads as replied when they respond.
+                    </p>
+                </div>
                 <LeadTable leads={leads} onLeadStatusUpdated={handleMarkReplied} />
             </div>
         </div>

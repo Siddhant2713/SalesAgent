@@ -1,68 +1,136 @@
 import React from 'react';
+import EmptyState from './EmptyState';
+
+const STATUS_STYLES = {
+    new:       { bg: 'var(--status-new)',       text: 'var(--status-new-text)' },
+    contacted: { bg: 'var(--status-contacted)', text: 'var(--status-contacted-text)' },
+    replied:   { bg: 'var(--status-replied)',   text: 'var(--status-replied-text)' },
+};
 
 export default function LeadTable({ leads, onLeadDeleted, onLeadStatusUpdated }) {
     if (!leads || leads.length === 0) {
-        return <div className="text-gray-500 py-4">No leads found.</div>;
+        return <EmptyState message="No leads yet." />;
     }
 
-    const statusConfig = {
-        new: { color: 'bg-gray-100 text-gray-800', icon: '⏳' },
-        contacted: { color: 'bg-blue-100 text-blue-800', icon: '✉️' },
-        replied: { color: 'bg-green-100 text-green-800', icon: '✅' }
+    const thStyle = {
+        fontSize: '11px',
+        color: 'var(--text-muted)',
+        textTransform: 'uppercase',
+        letterSpacing: '0.06em',
+        fontWeight: 500,
+        padding: '10px 16px',
+        textAlign: 'left'
+    };
+
+    const tdStyle = {
+        padding: '12px 16px',
+        fontSize: '13px',
+        color: 'var(--text-secondary)',
+        whiteSpace: 'nowrap'
     };
 
     return (
-        <div className="overflow-x-auto shadow ring-1 ring-black ring-opacity-5 md:rounded-lg">
-            <table className="min-w-full divide-y divide-gray-300">
-                <thead className="bg-gray-50">
-                    <tr>
-                        <th className="py-3.5 pl-4 pr-3 text-left text-sm font-semibold text-gray-900">Name</th>
-                        <th className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Role</th>
-                        <th className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Company</th>
-                        <th className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Email</th>
-                        <th className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Status</th>
-                        <th className="relative py-3.5 pl-3 pr-4 sm:pr-6">
-                            <span className="sr-only">Actions</span>
-                        </th>
-                    </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-200 bg-white">
-                    {leads.map((lead) => (
-                        <tr key={lead.id}>
-                            <td className="whitespace-nowrap py-4 pl-4 pr-3 text-sm font-medium text-gray-900">{lead.name}</td>
-                            <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">{lead.role}</td>
-                            <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">{lead.company}</td>
-                            <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">{lead.email}</td>
-                            <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
-                                <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold leading-5 ${statusConfig[lead.status].color}`}>
-                                    <span aria-hidden="true">{statusConfig[lead.status].icon}</span>
-                                    <span>{lead.status}</span>
-                                </span>
-                            </td>
-                            <td className="relative whitespace-nowrap py-4 pl-3 pr-4 text-right text-sm font-medium sm:pr-6 space-x-2">
-                                {onLeadStatusUpdated && lead.status === 'contacted' && (
-                                    <button 
-                                        aria-label={`Mark ${lead.name} as replied`}
-                                        onClick={() => onLeadStatusUpdated(lead.id, 'replied')}
-                                        className="text-indigo-600 hover:text-indigo-900 mr-2"
-                                    >
-                                        Mark Replied
-                                    </button>
-                                )}
-                                {onLeadDeleted && (
-                                    <button 
-                                        aria-label={`Delete lead ${lead.name}`}
-                                        onClick={() => onLeadDeleted(lead.id)}
-                                        className="text-red-600 hover:text-red-900"
-                                    >
-                                        Delete
-                                    </button>
-                                )}
-                            </td>
+        <div className="sa-card" style={{ overflow: 'hidden' }}>
+            <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                    <thead>
+                        <tr style={{ background: 'var(--bg-elevated)', borderBottom: '1px solid var(--border-subtle)' }}>
+                            <th style={thStyle}>Name</th>
+                            <th style={thStyle}>Role</th>
+                            <th style={thStyle}>Company</th>
+                            <th style={thStyle}>Email</th>
+                            <th style={thStyle}>Status</th>
+                            <th style={{ ...thStyle, textAlign: 'right' }}>
+                                <span className="sr-only">Actions</span>
+                            </th>
                         </tr>
-                    ))}
-                </tbody>
-            </table>
+                    </thead>
+                    <tbody>
+                        {leads.map((lead, index) => {
+                            const status = STATUS_STYLES[lead.status] || STATUS_STYLES.new;
+                            return (
+                                <tr
+                                    key={lead.id}
+                                    style={{
+                                        background: 'var(--bg-surface)',
+                                        borderBottom: index < leads.length - 1 ? '1px solid var(--border-subtle)' : 'none',
+                                        transition: 'background 0.1s'
+                                    }}
+                                    onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--bg-elevated)'; }}
+                                    onMouseLeave={(e) => { e.currentTarget.style.background = 'var(--bg-surface)'; }}
+                                >
+                                    <td style={{ ...tdStyle, color: 'var(--text-primary)', fontWeight: 500 }}>{lead.name}</td>
+                                    <td style={tdStyle}>{lead.role}</td>
+                                    <td style={tdStyle}>{lead.company}</td>
+                                    <td style={tdStyle}>{lead.email}</td>
+                                    <td style={tdStyle}>
+                                        <span style={{
+                                            display: 'inline-flex',
+                                            alignItems: 'center',
+                                            gap: '6px',
+                                            padding: '3px 8px',
+                                            borderRadius: '4px',
+                                            fontSize: '11px',
+                                            fontWeight: 500,
+                                            background: status.bg,
+                                            color: status.text
+                                        }}>
+                                            <span style={{
+                                                width: '5px',
+                                                height: '5px',
+                                                borderRadius: '50%',
+                                                background: status.text
+                                            }} aria-hidden="true" />
+                                            {lead.status}
+                                        </span>
+                                    </td>
+                                    <td style={{ ...tdStyle, textAlign: 'right' }}>
+                                        {onLeadStatusUpdated && lead.status === 'contacted' && (
+                                            <button
+                                                aria-label={`Mark ${lead.name} as replied`}
+                                                onClick={() => onLeadStatusUpdated(lead.id, 'replied')}
+                                                style={{
+                                                    background: 'none',
+                                                    border: 'none',
+                                                    color: 'var(--blue-primary)',
+                                                    fontSize: '12px',
+                                                    cursor: 'pointer',
+                                                    fontFamily: 'var(--font-sans)',
+                                                    marginRight: '12px',
+                                                    transition: 'color 0.15s'
+                                                }}
+                                                onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--blue-hover)'; }}
+                                                onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--blue-primary)'; }}
+                                            >
+                                                Mark Replied
+                                            </button>
+                                        )}
+                                        {onLeadDeleted && (
+                                            <button
+                                                aria-label={`Delete lead ${lead.name}`}
+                                                onClick={() => onLeadDeleted(lead.id)}
+                                                style={{
+                                                    background: 'none',
+                                                    border: 'none',
+                                                    color: 'var(--text-muted)',
+                                                    fontSize: '12px',
+                                                    cursor: 'pointer',
+                                                    fontFamily: 'var(--font-sans)',
+                                                    transition: 'color 0.15s'
+                                                }}
+                                                onMouseEnter={(e) => { e.currentTarget.style.color = '#fc8181'; }}
+                                                onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--text-muted)'; }}
+                                            >
+                                                Delete
+                                            </button>
+                                        )}
+                                    </td>
+                                </tr>
+                            );
+                        })}
+                    </tbody>
+                </table>
+            </div>
         </div>
     );
 }

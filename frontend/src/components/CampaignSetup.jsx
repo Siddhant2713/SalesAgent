@@ -6,61 +6,129 @@ export default function CampaignSetup({
     handleSelectAll, handleSelectLead,
     quota, handleGenerate
 }) {
+    const thStyle = {
+        fontSize: '11px',
+        color: 'var(--text-muted)',
+        textTransform: 'uppercase',
+        letterSpacing: '0.06em',
+        fontWeight: 500,
+        padding: '8px 12px',
+        textAlign: 'left'
+    };
+
+    const tdStyle = {
+        padding: '8px 12px',
+        fontSize: '13px',
+        color: 'var(--text-secondary)'
+    };
+
     return (
-        <div className="bg-white shadow rounded-lg p-6">
-            <div className="mb-6">
-                <label htmlFor="campaign-name" className="block text-sm font-medium text-gray-700 mb-2">Campaign Name</label>
-                <input 
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            {/* Campaign name */}
+            <div className="sa-card" style={{ padding: '24px' }}>
+                <label htmlFor="campaign-name" className="sa-label">Campaign Name</label>
+                <input
                     id="campaign-name"
-                    type="text" 
-                    className="w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm p-2 border" 
-                    value={campaignName} 
+                    type="text"
+                    className="sa-input"
+                    value={campaignName}
                     onChange={e => setCampaignName(e.target.value)}
                     placeholder="e.g. Batch 1 - Tech Founders"
                 />
             </div>
 
-            <div className="mb-6">
-                <div className="flex justify-between items-center mb-2">
-                    <label className="block text-sm font-medium text-gray-700">Select Leads (New only)</label>
-                    <span className="text-sm text-gray-500">{selectedLeadIds.size} selected</span>
+            {/* Select leads */}
+            <div className="sa-card" style={{ padding: '24px' }}>
+                <div style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    marginBottom: '12px'
+                }}>
+                    <span className="sa-label" style={{ marginBottom: 0 }}>Select Leads</span>
+                    <span style={{
+                        background: 'var(--bg-elevated)',
+                        color: 'var(--text-secondary)',
+                        borderRadius: '4px',
+                        fontSize: '11px',
+                        padding: '2px 7px'
+                    }}>
+                        {selectedLeadIds.size} selected
+                    </span>
                 </div>
-                
-                <div className="border rounded-md max-h-64 overflow-y-auto">
-                    <table className="min-w-full divide-y divide-gray-200">
-                        <thead className="bg-gray-50 sticky top-0">
-                            <tr>
-                                <th className="px-6 py-3 text-left">
+
+                <div style={{
+                    border: '1px solid var(--border-subtle)',
+                    borderRadius: '6px',
+                    maxHeight: '260px',
+                    overflowY: 'auto'
+                }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                        <thead>
+                            <tr style={{
+                                background: 'var(--bg-elevated)',
+                                borderBottom: '1px solid var(--border-subtle)',
+                                position: 'sticky',
+                                top: 0
+                            }}>
+                                <th style={{ ...thStyle, width: '40px' }}>
                                     <label htmlFor="select-all" className="sr-only">Select all leads</label>
-                                    <input id="select-all" type="checkbox" onChange={handleSelectAll} checked={leads.length > 0 && selectedLeadIds.size === leads.length} />
+                                    <input
+                                        id="select-all"
+                                        type="checkbox"
+                                        onChange={handleSelectAll}
+                                        checked={leads.length > 0 && selectedLeadIds.size === leads.length}
+                                        style={{ accentColor: 'var(--blue-primary)' }}
+                                    />
                                 </th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Company</th>
+                                <th style={thStyle}>Name</th>
+                                <th style={thStyle}>Company</th>
                             </tr>
                         </thead>
-                        <tbody className="bg-white divide-y divide-gray-200">
+                        <tbody>
                             {leads.length === 0 ? (
-                                <tr><td colSpan="3" className="px-6 py-4 text-center text-sm text-gray-500">No new leads available.</td></tr>
-                            ) : leads.map(lead => (
-                                <tr key={lead.id}>
-                                    <td className="px-6 py-4">
-                                        <label htmlFor={`select-lead-${lead.id}`} className="sr-only">Select lead {lead.name}</label>
-                                        <input id={`select-lead-${lead.id}`} type="checkbox" checked={selectedLeadIds.has(lead.id)} onChange={() => handleSelectLead(lead.id)} />
+                                <tr>
+                                    <td colSpan="3" style={{
+                                        padding: '24px',
+                                        textAlign: 'center',
+                                        fontSize: '13px',
+                                        color: 'var(--text-muted)'
+                                    }}>
+                                        No new leads available.
                                     </td>
-                                    <td className="px-6 py-4 text-sm text-gray-900">{lead.name}</td>
-                                    <td className="px-6 py-4 text-sm text-gray-500">{lead.company}</td>
+                                </tr>
+                            ) : leads.map((lead, index) => (
+                                <tr key={lead.id} style={{
+                                    borderBottom: index < leads.length - 1 ? '1px solid var(--border-subtle)' : 'none'
+                                }}>
+                                    <td style={tdStyle}>
+                                        <label htmlFor={`select-lead-${lead.id}`} className="sr-only">Select lead {lead.name}</label>
+                                        <input
+                                            id={`select-lead-${lead.id}`}
+                                            type="checkbox"
+                                            checked={selectedLeadIds.has(lead.id)}
+                                            onChange={() => handleSelectLead(lead.id)}
+                                            style={{ accentColor: 'var(--blue-primary)' }}
+                                        />
+                                    </td>
+                                    <td style={{ ...tdStyle, color: 'var(--text-primary)' }}>{lead.name}</td>
+                                    <td style={tdStyle}>{lead.company}</td>
                                 </tr>
                             ))}
                         </tbody>
                     </table>
                 </div>
-                <p className="mt-2 text-xs text-gray-500">Maximum 50 leads per batch.</p>
+                <p style={{ marginTop: '8px', fontSize: '11px', color: 'var(--text-muted)' }}>
+                    Maximum 50 leads per batch.
+                </p>
             </div>
 
-            <button 
+            {/* Generate button */}
+            <button
                 onClick={handleGenerate}
                 disabled={!campaignName || selectedLeadIds.size === 0 || quota?.daily_remaining === 0 || selectedLeadIds.size > 50}
-                className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50"
+                className="sa-btn-primary"
+                style={{ width: '100%', padding: '11px 18px' }}
             >
                 Generate Messages
             </button>

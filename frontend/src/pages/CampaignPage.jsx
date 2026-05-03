@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import CampaignSetup from '../components/CampaignSetup';
 import CampaignPreview from '../components/CampaignPreview';
 import CampaignSent from '../components/CampaignSent';
+import PageHeader from '../components/PageHeader';
 
 export default function CampaignPage() {
     const navigate = useNavigate();
@@ -116,17 +117,50 @@ export default function CampaignPage() {
         }
     };
 
-    return (
-        <div className="space-y-6 max-w-4xl mx-auto">
-            <h1 className="text-2xl font-bold text-gray-900">Campaign Manager</h1>
+    // Calculate quota percentage for progress bar
+    const quotaUsed = quota ? quota.daily_limit - quota.daily_remaining : 0;
+    const quotaPercentage = quota ? (quotaUsed / quota.daily_limit) * 100 : 0;
+    const isQuotaEmpty = quota?.daily_remaining === 0;
 
+    return (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '32px', maxWidth: '800px', margin: '0 auto' }}>
+            <PageHeader
+                title="Campaigns"
+                description="Generate and send personalized email campaigns to your leads."
+            />
+
+            {/* Quota bar */}
             {quota && (
-                <div className={`p-4 rounded-md ${quota.daily_remaining === 0 ? 'bg-red-100 text-red-800' : 'bg-blue-50 text-blue-800'}`}>
-                    <strong>API Quota:</strong> {quota.daily_remaining} / {quota.daily_limit} calls remaining today.
+                <div style={{ marginBottom: '8px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', marginBottom: '6px' }}>
+                        <span style={{ color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 500 }}>API Quota</span>
+                        <span style={{ color: isQuotaEmpty ? '#fc8181' : 'var(--text-secondary)' }}>
+                            {quotaUsed} / {quota.daily_limit} used
+                        </span>
+                    </div>
+                    <div style={{ height: '2px', background: 'var(--bg-elevated)', borderRadius: '1px', overflow: 'hidden' }}>
+                        <div style={{ 
+                            height: '100%', 
+                            background: isQuotaEmpty ? '#e53e3e' : 'var(--blue-primary)', 
+                            width: `${quotaPercentage}%`,
+                            transition: 'width 0.3s ease'
+                        }} />
+                    </div>
                 </div>
             )}
 
-            {error && <div className="bg-red-50 p-4 rounded-md text-red-800">{error}</div>}
+            {error && (
+                <div role="alert" aria-live="assertive" style={{
+                    borderLeft: '3px solid #e53e3e',
+                    background: 'var(--bg-elevated)',
+                    padding: '10px 14px',
+                    color: '#fc8181',
+                    fontSize: '13px',
+                    borderRadius: '4px'
+                }}>
+                    {error}
+                </div>
+            )}
 
             {step === 'setup' && (
                 <CampaignSetup 
@@ -137,16 +171,34 @@ export default function CampaignPage() {
                 />
             )}
 
+            {/* Generating State */}
             {step === 'generating' && (
-                <div className="text-center py-12">
-                    <div className="inline-block animate-spin rounded-full h-8 w-8 border-4 border-indigo-500 border-t-transparent mb-4"></div>
-                    <p className="text-lg text-gray-600">Generating AI messages...</p>
-                    <p className="text-sm text-gray-500 mt-2">This will take about 6 seconds per lead due to API rate limits.</p>
+                <div style={{
+                    background: 'var(--bg-surface)',
+                    border: '1px solid var(--border-subtle)',
+                    borderRadius: '8px',
+                    padding: '48px 32px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    justifyContent: 'center'
+                }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', width: '200px', marginBottom: '24px' }}>
+                        <div className="sa-pulse" style={{ height: '6px', borderRadius: '3px', background: 'var(--bg-elevated)', width: '60%' }} />
+                        <div className="sa-pulse" style={{ height: '6px', borderRadius: '3px', background: 'var(--bg-elevated)', width: '45%', animationDelay: '0.2s' }} />
+                        <div className="sa-pulse" style={{ height: '6px', borderRadius: '3px', background: 'var(--bg-elevated)', width: '75%', animationDelay: '0.4s' }} />
+                    </div>
+                    <p style={{ fontSize: '13px', color: 'var(--text-secondary)', margin: '0 0 4px 0' }}>
+                        Researching companies and generating emails...
+                    </p>
+                    <p style={{ fontSize: '11px', color: 'var(--text-muted)', margin: 0 }}>
+                        Approx. 12 seconds per lead
+                    </p>
                 </div>
             )}
 
             {step === 'preview' && generatedData && (
-                <div ref={previewRef} tabIndex="-1" aria-label="Generated email previews">
+                <div ref={previewRef} tabIndex="-1" aria-label="Generated email previews" style={{ outline: 'none' }}>
                     <CampaignPreview 
                         generatedData={generatedData}
                         selectedTone={selectedTone} setSelectedTone={setSelectedTone}
@@ -155,10 +207,22 @@ export default function CampaignPage() {
                 </div>
             )}
 
+            {/* Sending State */}
             {step === 'sending' && (
-                <div className="text-center py-12">
-                    <div className="inline-block animate-spin rounded-full h-8 w-8 border-4 border-indigo-500 border-t-transparent mb-4"></div>
-                    <p className="text-lg text-gray-600">Sending emails via SMTP...</p>
+                <div style={{
+                    background: 'var(--bg-surface)',
+                    border: '1px solid var(--border-subtle)',
+                    borderRadius: '8px',
+                    padding: '48px 32px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    justifyContent: 'center'
+                }}>
+                    <div className="sa-pulse" style={{ height: '6px', borderRadius: '3px', background: 'var(--blue-primary)', width: '60%', marginBottom: '24px' }} />
+                    <p style={{ fontSize: '13px', color: 'var(--text-secondary)', margin: 0 }}>
+                        Sending emails...
+                    </p>
                 </div>
             )}
 

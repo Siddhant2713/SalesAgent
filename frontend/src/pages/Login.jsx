@@ -31,66 +31,135 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-md w-full space-y-8 bg-white p-8 rounded-lg shadow">
-        <div>
-          <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
-            {isRegistering ? 'Create your account' : 'Sign in to SalesAgent'}
-          </h2>
-        </div>
-        <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
-          {error && <div role="alert" aria-live="assertive" className="text-red-600 bg-red-50 p-3 rounded">{error}</div>}
-          <div className="space-y-4">
-            <div>
-              <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">Email address</label>
-              <input
-                id="email"
-                name="email"
-                type="email"
-                required
-                className="appearance-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
-                placeholder="you@example.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-              />
-            </div>
-            <div>
-              <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">Password</label>
-              <input
-                id="password"
-                name="password"
-                type="password"
-                required
-                className="appearance-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
-                placeholder="Minimum 8 characters"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-              />
-            </div>
+    <div style={{
+      minHeight: '100vh',
+      display: 'flex',
+      flexDirection: 'column',
+      alignItems: 'center',
+      justifyContent: 'center',
+      background: 'var(--bg-base)',
+      padding: '24px'
+    }}>
+      {/* Logo */}
+      <div style={{
+        fontSize: '18px',
+        fontWeight: 600,
+        color: 'var(--text-primary)',
+        marginBottom: '48px'
+      }}>
+        SalesAgent
+      </div>
+
+      {/* Heading */}
+      <div style={{ textAlign: 'center', marginBottom: '24px', maxWidth: '400px', width: '100%' }}>
+        <h2 style={{
+          fontSize: '24px',
+          fontWeight: 600,
+          color: 'var(--text-primary)',
+          letterSpacing: '-0.03em',
+          margin: 0
+        }}>
+          {isRegistering ? 'Create your account' : 'Welcome back'}
+        </h2>
+        <p style={{
+          fontSize: '13px',
+          color: 'var(--text-secondary)',
+          marginTop: '4px'
+        }}>
+          {isRegistering ? 'Set up takes 2 minutes.' : 'Sign in to continue.'}
+        </p>
+      </div>
+
+      {/* Form card */}
+      <div className="sa-card sa-fade-in" style={{
+        padding: '28px',
+        borderRadius: '10px',
+        maxWidth: '400px',
+        width: '100%'
+      }}>
+        <form onSubmit={handleSubmit}>
+          <div style={{ marginBottom: '16px' }}>
+            <label htmlFor="email" className="sa-label">Email address</label>
+            <input
+              id="email"
+              name="email"
+              type="email"
+              required
+              className="sa-input"
+              placeholder="you@example.com"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+            />
           </div>
 
-          <div>
-            <button
-              type="submit"
-              disabled={loading}
-              className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-            >
-              <span role="status" aria-live="polite">
-                {loading ? 'Processing...' : (isRegistering ? 'Register' : 'Sign In')}
-              </span>
-            </button>
+          <div style={{ marginBottom: '20px' }}>
+            <label htmlFor="password" className="sa-label">Password</label>
+            <input
+              id="password"
+              name="password"
+              type="password"
+              required
+              className="sa-input"
+              placeholder="Minimum 8 characters"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+            />
           </div>
-          
-          <div className="text-sm text-center mt-4">
-            <button
-              type="button"
-              className="font-medium text-blue-600 hover:text-blue-500"
-              onClick={() => setIsRegistering(!isRegistering)}
+
+          {error && (
+            <div
+              role="alert"
+              aria-live="assertive"
+              className="sa-shake"
+              style={{
+                borderLeft: '3px solid #e53e3e',
+                color: '#fc8181',
+                fontSize: '13px',
+                padding: '10px 12px',
+                marginBottom: '16px',
+                borderRadius: '4px'
+              }}
             >
-              {isRegistering ? 'Already have an account? Sign in' : "Don't have an account? Register"}
-            </button>
-          </div>
+              {error}
+            </div>
+          )}
+
+          <button
+            type="submit"
+            disabled={loading}
+            className="sa-btn-primary"
+            style={{ width: '100%', padding: '11px 18px', opacity: loading ? 0.7 : 1 }}
+          >
+            <span role="status" aria-live="polite">
+              {loading ? 'Verifying...' : (isRegistering ? 'Register' : 'Sign In')}
+            </span>
+          </button>
         </form>
+      </div>
+
+      {/* Toggle */}
+      <div style={{ marginTop: '16px', fontSize: '13px', textAlign: 'center' }}>
+        <span style={{ color: 'var(--text-muted)' }}>
+          {isRegistering ? 'Already have an account? ' : "Don't have an account? "}
+        </span>
+        <button
+          type="button"
+          onClick={() => setIsRegistering(!isRegistering)}
+          style={{
+            background: 'none',
+            border: 'none',
+            color: 'var(--blue-primary)',
+            cursor: 'pointer',
+            fontFamily: 'var(--font-sans)',
+            fontSize: '13px',
+            padding: 0,
+            transition: 'color 0.15s'
+          }}
+          onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--blue-hover)'; }}
+          onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--blue-primary)'; }}
+        >
+          {isRegistering ? 'Sign in' : 'Register'}
+        </button>
       </div>
     </div>
   );

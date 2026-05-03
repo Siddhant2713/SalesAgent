@@ -1,58 +1,126 @@
 import React from 'react';
 
-const STAGE_COLORS = {
-    early_startup: { bg: 'bg-purple-100', text: 'text-purple-800', label: 'Early Startup' },
-    growth_stage: { bg: 'bg-blue-100', text: 'text-blue-800', label: 'Growth Stage' },
-    enterprise: { bg: 'bg-green-100', text: 'text-green-800', label: 'Enterprise' },
+const STAGE_STYLES = {
+    early_startup: { bg: 'rgba(147,51,234,0.15)', color: '#a78bfa', label: 'Early Startup' },
+    growth_stage:  { bg: 'rgba(26,92,245,0.12)',   color: '#4a9eff', label: 'Growth Stage' },
+    enterprise:    { bg: 'rgba(52,211,153,0.12)',   color: '#34d399', label: 'Enterprise' },
 };
 
 export default function EnrichmentCard({ enrichment, company }) {
     if (!enrichment || !enrichment.best_hook) return null;
-    
-    const stage = STAGE_COLORS[enrichment.company_stage] || STAGE_COLORS.growth_stage;
-    
+
+    const stage = STAGE_STYLES[enrichment.company_stage] || STAGE_STYLES.growth_stage;
+
     return (
-        <div className="bg-gradient-to-r from-indigo-50 to-blue-50 border border-indigo-200 rounded-lg p-4 mb-3">
-            <div className="flex items-center justify-between mb-3">
-                <h4 className="text-sm font-semibold text-indigo-900 flex items-center gap-2">
-                    <svg className="h-4 w-4 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
-                    </svg>
-                    AI Company Research
-                </h4>
-                <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${stage.bg} ${stage.text}`}>
+        <div style={{
+            background: 'var(--bg-elevated)',
+            borderLeft: '2px solid var(--blue-primary)',
+            borderRadius: '6px',
+            padding: '14px 16px',
+            marginBottom: '8px'
+        }}>
+            {/* Header */}
+            <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                marginBottom: '12px'
+            }}>
+                <span style={{
+                    fontSize: '11px',
+                    textTransform: 'uppercase',
+                    color: 'var(--text-muted)',
+                    letterSpacing: '0.06em',
+                    fontWeight: 500
+                }}>
+                    Company Research
+                </span>
+                <span style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    padding: '3px 8px',
+                    borderRadius: '4px',
+                    fontSize: '11px',
+                    fontWeight: 500,
+                    background: stage.bg,
+                    color: stage.color
+                }}>
                     {stage.label}
                 </span>
             </div>
-            
-            <div className="space-y-2">
-                <div>
-                    <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">Best Hook</span>
-                    <p className="text-sm text-gray-800 mt-0.5 font-medium">{enrichment.best_hook}</p>
-                </div>
-                
-                {enrichment.likely_pain_points && enrichment.likely_pain_points.length > 0 && (
-                    <div>
-                        <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">Pain Points</span>
-                        <div className="flex flex-wrap gap-1.5 mt-1">
-                            {enrichment.likely_pain_points.map((point, i) => (
-                                <span key={i} className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-white text-gray-700 border border-gray-200">
-                                    {point}
-                                </span>
-                            ))}
-                        </div>
-                    </div>
-                )}
-                
-                {enrichment.tone_recommendation && (
-                    <div className="flex items-center gap-2 pt-1">
-                        <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">Suggested Tone:</span>
-                        <span className="capitalize text-xs font-semibold text-indigo-700 bg-indigo-100 px-2 py-0.5 rounded">
-                            {enrichment.tone_recommendation}
-                        </span>
-                    </div>
-                )}
+
+            {/* Best Angle */}
+            <div style={{ marginBottom: '10px' }}>
+                <span style={{
+                    fontSize: '11px',
+                    textTransform: 'uppercase',
+                    color: 'var(--text-muted)',
+                    letterSpacing: '0.06em',
+                    fontWeight: 500
+                }}>
+                    Best Angle
+                </span>
+                <p style={{
+                    fontSize: '13px',
+                    color: 'var(--text-primary)',
+                    fontWeight: 500,
+                    marginTop: '4px',
+                    margin: '4px 0 0 0'
+                }}>
+                    {enrichment.best_hook}
+                </p>
             </div>
+
+            {/* Pain Points */}
+            {enrichment.likely_pain_points && enrichment.likely_pain_points.length > 0 && (
+                <div style={{ marginBottom: '10px' }}>
+                    <span style={{
+                        fontSize: '11px',
+                        textTransform: 'uppercase',
+                        color: 'var(--text-muted)',
+                        letterSpacing: '0.06em',
+                        fontWeight: 500
+                    }}>
+                        Pain Points
+                    </span>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: '6px' }}>
+                        {enrichment.likely_pain_points.map((point, i) => (
+                            <span key={i} style={{
+                                background: 'var(--bg-surface)',
+                                border: '1px solid var(--border-subtle)',
+                                borderRadius: '4px',
+                                padding: '2px 8px',
+                                fontSize: '11px',
+                                color: 'var(--text-secondary)'
+                            }}>
+                                {point}
+                            </span>
+                        ))}
+                    </div>
+                </div>
+            )}
+
+            {/* Suggested Tone */}
+            {enrichment.tone_recommendation && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span style={{
+                        fontSize: '11px',
+                        textTransform: 'uppercase',
+                        color: 'var(--text-muted)',
+                        letterSpacing: '0.06em',
+                        fontWeight: 500
+                    }}>
+                        Suggested Tone
+                    </span>
+                    <span style={{
+                        fontSize: '11px',
+                        color: 'var(--blue-primary)',
+                        textTransform: 'capitalize'
+                    }}>
+                        {enrichment.tone_recommendation}
+                    </span>
+                </div>
+            )}
         </div>
     );
 }
