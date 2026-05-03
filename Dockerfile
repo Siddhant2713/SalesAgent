@@ -48,9 +48,9 @@ ENV DATABASE_URL="sqlite:///./data/salesagent.db"
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 
-# Expose port (HF Spaces uses 7860, others use 8000)
-ENV PORT=7860
-EXPOSE 7860
+# Expose port — Cloud Run uses 8000 (passed via --port), HF Spaces overrides via $PORT
+ENV PORT=8000
+EXPOSE 8000
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=5s --retries=3 \
