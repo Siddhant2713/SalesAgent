@@ -9,6 +9,7 @@ import CampaignPage from './pages/CampaignPage';
 import Dashboard from './pages/Dashboard';
 import Settings from './pages/Settings';
 import Onboarding from './pages/Onboarding';
+import LandingPage from './pages/LandingPage';
 
 import Sidebar from './components/Sidebar';
 
@@ -71,10 +72,10 @@ function AuthenticatedLayout() {
       }}>
         <Routes>
           <Route path="/" element={<UploadPage />} />
-          <Route path="/campaign" element={<CampaignPage />} />
-          <Route path="/dashboard" element={<Dashboard />} />
-          <Route path="/settings" element={<Settings />} />
-          <Route path="*" element={<Navigate to="/" replace />} />
+          <Route path="campaign" element={<CampaignPage />} />
+          <Route path="dashboard" element={<Dashboard />} />
+          <Route path="settings" element={<Settings />} />
+          <Route path="*" element={<Navigate to="" replace />} />
         </Routes>
       </main>
     </div>
@@ -86,8 +87,10 @@ function AppContent() {
 
   return (
     <Routes>
-      <Route path="/login" element={!isAuthenticated ? <Login /> : <Navigate to="/" replace />} />
-      <Route path="/*" element={isAuthenticated ? <AuthenticatedLayout /> : <Navigate to="/login" replace />} />
+      <Route path="/" element={<LandingPage />} />
+      <Route path="/login" element={!isAuthenticated ? <Login /> : <Navigate to="/app/" replace />} />
+      <Route path="/app/*" element={isAuthenticated ? <AuthenticatedLayout /> : <Navigate to="/login" replace />} />
+      <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
 }

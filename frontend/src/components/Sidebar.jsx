@@ -4,7 +4,7 @@ import { useAuth } from '../AuthContext';
 
 const NAV_ITEMS = [
     {
-        path: '/',
+        path: '/app/',
         label: 'Upload Leads',
         icon: (
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
@@ -15,7 +15,7 @@ const NAV_ITEMS = [
         )
     },
     {
-        path: '/campaign',
+        path: '/app/campaign',
         label: 'Campaigns',
         icon: (
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
@@ -26,7 +26,7 @@ const NAV_ITEMS = [
         )
     },
     {
-        path: '/dashboard',
+        path: '/app/dashboard',
         label: 'Dashboard',
         icon: (
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
@@ -37,7 +37,7 @@ const NAV_ITEMS = [
         )
     },
     {
-        path: '/settings',
+        path: '/app/settings',
         label: 'Settings',
         icon: (
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">

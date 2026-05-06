@@ -43,6 +43,16 @@
         /* Typography */
         --font-sans: 'DM Sans', system-ui, -apple-system, sans-serif;
         --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+
+        /* Landing Page specific */
+        --border-card:    #181f2e;
+        --text-dimmed:    #3a4258;
+        --surface-hover:  #111620;
+        --glow-hero:      rgba(26, 92, 245, 0.08);
+
+        /* Easing curves — reference these in GSAP */
+        --ease-out-expo:  cubic-bezier(0.16, 1, 0.3, 1);
+        --ease-in-out:    cubic-bezier(0.45, 0.05, 0.55, 0.95);
       }
 
       body {
@@ -165,6 +175,9 @@
         75% { transform: translateX(4px); }
       }
       .sa-shake { animation: sa-shake 0.3s ease; }
+
+      @keyframes blink { 0%, 100% { opacity: 1 } 50% { opacity: 0 } }
+      .cursor { animation: blink 1.1s step-end infinite; }
 
       /* ── Scrollbar (dark) ───────────────────────────── */
       ::-webkit-scrollbar { width: 6px; height: 6px; }
