@@ -31,7 +31,7 @@ def generate(request: Request, payload: GenerateRequest, db: Session = Depends(g
     if len(leads) != len(payload.lead_ids):
         raise HTTPException(status_code=404, detail="One or more leads not found or you don't have access")
 
-    calls_needed = len(leads)
+    calls_needed = len(leads) * 2  # 1 for enrichment, 1 for generation
     remaining = gemini_limiter.daily_remaining
 
     if calls_needed > remaining:

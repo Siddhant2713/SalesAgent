@@ -14,6 +14,7 @@ import logging
 from google import genai
 from google.genai import types
 from utils.encryption import decrypt
+from services.rate_limiter import gemini_limiter, QuotaExceededError
 
 logger = logging.getLogger(__name__)
 
@@ -61,6 +62,7 @@ def enrich_lead_context(company: str, role: str, current_user) -> dict:
             tools=[types.Tool(google_search=types.GoogleSearch())],
         )
         
+        gemini_limiter.acquire()
         response = client.models.generate_content(
             model=MODEL,
             contents=prompt,
@@ -87,6 +89,8 @@ def enrich_lead_context(company: str, role: str, current_user) -> dict:
         
         return result
         
+    except QuotaExceededError:
+        raise
     except Exception as e:
         # Enrichment is non-blocking — if it fails, we still generate emails normally
         logger.warning(f"Enrichment failed for {company}: {e}. Proceeding without enrichment.")
