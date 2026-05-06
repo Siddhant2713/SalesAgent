@@ -106,6 +106,10 @@ export async function getCampaignMessages(id) {
     return fetchApi(`/api/campaign/${id}/messages`);
 }
 
+export async function getCampaignStatus(id) {
+    return fetchApi(`/api/campaign/${id}/status`);
+}
+
 export async function getAnalytics() {
     return fetchApi("/api/analytics/summary");
 }

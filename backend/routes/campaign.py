@@ -1,19 +1,20 @@
 import logging
-from fastapi import APIRouter, Depends, HTTPException, Request
+import asyncio
+from fastapi import APIRouter, Depends, HTTPException, Request, BackgroundTasks
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import func, case, and_
-from typing import List
+from typing import List, Dict, Any
 import smtplib
 
-from database import get_db
+from database import get_db, SessionLocal
 from models.lead import Lead
-from models.campaign import Campaign, Message
+from models.campaign import Campaign, Message, PipelineJob
 from models.user import User
 from schemas.campaign import GenerateRequest, SendCampaignRequest
-from services.ai_service import generate_messages, generate_followup
 from services.email_service import send_email
 from services.tracking_service import get_followup_tone
 from services.rate_limiter import gemini_limiter, QuotaExceededError
+from services.campaign_orchestrator import run_campaign_pipeline
 from utils.security import get_current_user
 from utils.limiter import limiter
 from google.api_core import exceptions as google_exceptions
@@ -23,7 +24,13 @@ router = APIRouter()
 
 @router.post("/generate")
 @limiter.limit("5/minute")
-def generate(request: Request, payload: GenerateRequest, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)) -> dict:
+async def generate(
+    request: Request, 
+    payload: GenerateRequest, 
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db), 
+    current_user: User = Depends(get_current_user)
+) -> dict:
     if not current_user.gemini_api_key:
         raise HTTPException(status_code=400, detail="Please configure your Gemini API Key in Settings first.")
         
@@ -31,7 +38,8 @@ def generate(request: Request, payload: GenerateRequest, db: Session = Depends(g
     if len(leads) != len(payload.lead_ids):
         raise HTTPException(status_code=404, detail="One or more leads not found or you don't have access")
 
-    calls_needed = len(leads) * 2  # 1 for enrichment, 1 for generation
+    # Check quota before starting background job
+    calls_needed = len(leads) * 2
     remaining = gemini_limiter.daily_remaining
 
     if calls_needed > remaining:
@@ -40,87 +48,66 @@ def generate(request: Request, payload: GenerateRequest, db: Session = Depends(g
             detail=(f"Insufficient daily API quota. Need {calls_needed} calls, only {remaining} remaining today.")
         )
 
-    campaign = Campaign(user_id=current_user.id, name=payload.campaign_name)
+    # Create campaign record immediately
+    campaign = Campaign(user_id=current_user.id, name=payload.campaign_name, status="generating")
     db.add(campaign)
     db.commit()
     db.refresh(campaign)
 
-    generated_count = 0
-    skipped_count = 0
-    messages_response = []
+    # Create PipelineJob record
+    job = PipelineJob(
+        campaign_id=campaign.id,
+        user_id=current_user.id,
+        total_leads=len(leads),
+        status="pending"
+    )
+    db.add(job)
+    db.commit()
 
-    for lead in leads:
-        existing = db.query(Message).filter(
-            Message.lead_id == lead.id,
-            Message.campaign_id == campaign.id,
-            Message.message_type == "initial"
-        ).first()
-
-        if existing:
-            skipped_count += 1
-            continue
-
-        try:
-            # We must pass current_user to ai_service so it can use their specific API key
-            variants = generate_messages(lead, current_user)
-            
-            # Extract enrichment data (added by enrichment pipeline)
-            enrichment = variants.pop("_enrichment", {})
-            
-            lead_messages_res = {
-                "lead_id": lead.id,
-                "lead_name": lead.name,
-                "company": lead.company,
-                "enrichment": enrichment,
-                "variants": {}
-            }
-
-            for tone in ["friendly", "direct", "curiosity"]:
-                variant = variants.get(tone)
-                if not variant:
-                    continue
-
-                msg = Message(
-                    lead_id=lead.id,
-                    campaign_id=campaign.id,
-                    tone=tone,
-                    message_type="initial",
-                    subject=variant.get("subject", ""),
-                    body=variant.get("body", ""),
-                    sent=False,
-                    is_selected=False
-                )
-                db.add(msg)
-                lead_messages_res["variants"][tone] = variant
-                
-            db.commit()
-            messages_response.append(lead_messages_res)
-            generated_count += 1
-
-        except QuotaExceededError as e:
-            logger.warning(f"Quota exceeded during generation for lead {lead.id}: {e}")
-            db.rollback()
-            raise HTTPException(status_code=429, detail=f"API quota exceeded: {e}")
-        except google_exceptions.ResourceExhausted as e:
-            logger.warning(f"Gemini rate limit hit for lead {lead.id}: {e}")
-            db.rollback()
-            raise HTTPException(status_code=429, detail="Gemini API rate limit reached. Please wait and try again.")
-        except ValueError as e:
-            logger.error(f"Failed to parse AI response for lead {lead.id}: {e}")
-            db.rollback()
-            raise HTTPException(status_code=502, detail=f"AI response parsing failed: {e}")
-        except Exception as e:
-            import traceback
-            logger.error(f"Unexpected error generating for lead {lead.id}: {e}\n{traceback.format_exc()}")
-            db.rollback()
-            raise HTTPException(status_code=502, detail=f"Gemini API failure: {e}")
+    # Fire pipeline in background
+    lead_ids = [l.id for l in leads]
+    background_tasks.add_task(
+        run_campaign_pipeline, campaign.id, lead_ids, current_user.id, SessionLocal
+    )
 
     return {
         "campaign_id": campaign.id,
         "campaign_name": campaign.name,
-        "generated_count": generated_count,
-        "skipped_count": skipped_count,
-        "messages": messages_response
+        "status": "generating",
+        "total_leads": len(leads),
+        "estimated_seconds": len(leads) * 8.6,
+    }
+
+@router.get("/{campaign_id}/status")
+async def get_campaign_status(
+    campaign_id: int, 
+    db: Session = Depends(get_db), 
+    current_user: User = Depends(get_current_user)
+) -> dict:
+    campaign = db.query(Campaign).filter(Campaign.id == campaign_id, Campaign.user_id == current_user.id).first()
+    if not campaign:
+        raise HTTPException(status_code=404, detail="Campaign not found")
+    
+    job = db.query(PipelineJob).filter(PipelineJob.campaign_id == campaign_id).first()
+    if not job:
+        return {
+            "campaign_id": campaign.id,
+            "status": campaign.status,
+            "total_leads": 0,
+            "processed": 0,
+            "succeeded": 0,
+            "failed": 0
+        }
+
+    return {
+        "campaign_id": campaign.id,
+        "status": campaign.status,
+        "job_status": job.status,
+        "total_leads": job.total_leads,
+        "processed": job.processed,
+        "succeeded": job.succeeded,
+        "failed": job.failed,
+        "error_message": job.error_message
     }
 
 @router.post("/{campaign_id}/send")
@@ -172,6 +159,12 @@ def send_campaign(campaign_id: int, payload: SendCampaignRequest, db: Session = 
                 "error": str(e)
             })
 
+    # Update campaign status if all sent
+    remaining = db.query(Message).filter(Message.campaign_id == campaign.id, Message.sent == False).count()
+    if remaining == 0:
+        campaign.status = "sent"
+        db.commit()
+
     return {
         "sent": sent_count,
         "failed": len(failures),
@@ -179,7 +172,7 @@ def send_campaign(campaign_id: int, payload: SendCampaignRequest, db: Session = 
     }
 
 @router.post("/{campaign_id}/followup")
-def followup(campaign_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)) -> dict:
+async def followup(campaign_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)) -> dict:
     campaign = db.query(Campaign).filter(Campaign.user_id == current_user.id, Campaign.id == campaign_id).first()
     if not campaign:
         raise HTTPException(status_code=404, detail="Campaign not found")
@@ -222,14 +215,25 @@ def followup(campaign_id: int, db: Session = Depends(get_db), current_user: User
             break
 
         try:
-            variant = generate_followup(lead, initial_tone, followup_tone, current_user)
+            from services.llm_router import build_provider
+            provider = build_provider(current_user, current_user.id)
+            
+            result = await provider.followup(
+                lead_name=lead.name,
+                lead_role=lead.role,
+                lead_company=lead.company,
+                sender_name=current_user.smtp_from_name,
+                initial_tone=initial_tone,
+                followup_tone=followup_tone
+            )
+            
             followup_msg = Message(
                 lead_id=lead.id,
                 campaign_id=campaign.id,
                 tone=followup_tone,
                 message_type="followup",
-                subject=variant.get("subject", ""),
-                body=variant.get("body", ""),
+                subject=result.subject,
+                body=result.body,
                 sent=False,
                 is_selected=True
             )
@@ -246,6 +250,7 @@ def followup(campaign_id: int, db: Session = Depends(get_db), current_user: User
                 failures.append({"lead_id": lead.id, "email": lead.email, "error": str(e)})
 
         except Exception as e:
+            logger.error(f"Followup generation failed for lead {lead.id}: {e}")
             continue
 
     return {
@@ -259,6 +264,7 @@ def get_campaigns(db: Session = Depends(get_db), current_user: User = Depends(ge
     campaign_stats = db.query(
         Campaign.id,
         Campaign.name,
+        Campaign.status,
         Campaign.created_at,
         func.count(func.distinct(Message.lead_id)).label("lead_count"),
         func.count(func.distinct(case((and_(Message.sent == True, Message.message_type == "initial"), Message.lead_id)))).label("sent_count"),
@@ -274,6 +280,7 @@ def get_campaigns(db: Session = Depends(get_db), current_user: User = Depends(ge
         res.append({
             "id": c.id,
             "name": c.name,
+            "status": c.status,
             "created_at": c.created_at,
             "lead_count": c.lead_count,
             "sent_count": c.sent_count,

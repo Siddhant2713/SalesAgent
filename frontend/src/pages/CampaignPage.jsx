@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { getLeads, getQuota, generateMessages, sendCampaign, sendFollowups } from '../api/api';
+import { getLeads, getQuota, generateMessages, sendCampaign, sendFollowups, getCampaignStatus, getCampaignMessages } from '../api/api';
 import { useNavigate } from 'react-router-dom';
 import CampaignSetup from '../components/CampaignSetup';
 import CampaignPreview from '../components/CampaignPreview';
@@ -18,6 +18,9 @@ export default function CampaignPage() {
     // Setup state
     const [campaignName, setCampaignName] = useState('');
     const [selectedLeadIds, setSelectedLeadIds] = useState(new Set());
+    
+    // Generating state
+    const [generatingProgress, setGeneratingProgress] = useState(null);
     
     // Preview state
     const [generatedData, setGeneratedData] = useState(null);
@@ -69,7 +72,8 @@ export default function CampaignPage() {
     const handleGenerate = async () => {
         if (!campaignName.trim() || selectedLeadIds.size === 0) return;
         
-        if (selectedLeadIds.size > (quota?.daily_remaining || 0)) {
+        // Quota check (rough estimate)
+        if (selectedLeadIds.size * 2 > (quota?.daily_remaining || 0)) {
             setError(`You've selected ${selectedLeadIds.size} leads but only ${quota?.daily_remaining} API calls remain today.`);
             return;
         }
@@ -83,8 +87,44 @@ export default function CampaignPage() {
                 lead_ids: Array.from(selectedLeadIds)
             };
             const result = await generateMessages(payload);
-            setGeneratedData(result);
-            setStep('preview');
+            
+            if (result.status === 'generating') {
+                // Start polling
+                setGeneratingProgress({
+                    total: result.total_leads,
+                    processed: 0,
+                });
+                
+                const pollInterval = setInterval(async () => {
+                    try {
+                        const statusResult = await getCampaignStatus(result.campaign_id);
+                        setGeneratingProgress({
+                            total: statusResult.total_leads,
+                            processed: statusResult.processed,
+                        });
+                        
+                        if (statusResult.status === 'ready') {
+                            clearInterval(pollInterval);
+                            const fullMessages = await getCampaignMessages(result.campaign_id);
+                            setGeneratedData({
+                                ...result,
+                                messages: fullMessages
+                            });
+                            setStep('preview');
+                        } else if (statusResult.status === 'error') {
+                            clearInterval(pollInterval);
+                            setError(statusResult.error_message || 'Generation failed');
+                            setStep('setup');
+                        }
+                    } catch (pollErr) {
+                        console.error('Polling error:', pollErr);
+                    }
+                }, 3000);
+            } else {
+                // Fallback for sync response (if any)
+                setGeneratedData(result);
+                setStep('preview');
+            }
         } catch (err) {
             setError(`Generation failed: ${err.message}`);
             setStep('setup');
@@ -183,16 +223,36 @@ export default function CampaignPage() {
                     alignItems: 'center',
                     justifyContent: 'center'
                 }}>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', width: '200px', marginBottom: '24px' }}>
-                        <div className="sa-pulse" style={{ height: '6px', borderRadius: '3px', background: 'var(--bg-elevated)', width: '60%' }} />
-                        <div className="sa-pulse" style={{ height: '6px', borderRadius: '3px', background: 'var(--bg-elevated)', width: '45%', animationDelay: '0.2s' }} />
-                        <div className="sa-pulse" style={{ height: '6px', borderRadius: '3px', background: 'var(--bg-elevated)', width: '75%', animationDelay: '0.4s' }} />
-                    </div>
+                    {generatingProgress && (
+                        <div style={{ marginBottom: '24px', width: '200px' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', marginBottom: '4px' }}>
+                                <span style={{ color: 'var(--text-muted)' }}>Leads processed</span>
+                                <span style={{ color: 'var(--text-secondary)' }}>
+                                    {generatingProgress.processed} / {generatingProgress.total}
+                                </span>
+                            </div>
+                            <div style={{ height: '2px', background: 'var(--bg-elevated)', borderRadius: '1px', overflow: 'hidden' }}>
+                                <div style={{
+                                    height: '100%',
+                                    background: 'var(--blue-primary)',
+                                    width: `${(generatingProgress.processed / generatingProgress.total) * 100}%`,
+                                    transition: 'width 0.5s ease',
+                                }} />
+                            </div>
+                        </div>
+                    )}
+                    {!generatingProgress && (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', width: '200px', marginBottom: '24px' }}>
+                            <div className="sa-pulse" style={{ height: '6px', borderRadius: '3px', background: 'var(--bg-elevated)', width: '60%' }} />
+                            <div className="sa-pulse" style={{ height: '6px', borderRadius: '3px', background: 'var(--bg-elevated)', width: '45%', animationDelay: '0.2s' }} />
+                            <div className="sa-pulse" style={{ height: '6px', borderRadius: '3px', background: 'var(--bg-elevated)', width: '75%', animationDelay: '0.4s' }} />
+                        </div>
+                    )}
                     <p style={{ fontSize: '13px', color: 'var(--text-secondary)', margin: '0 0 4px 0' }}>
                         Researching companies and generating emails...
                     </p>
                     <p style={{ fontSize: '11px', color: 'var(--text-muted)', margin: 0 }}>
-                        Approx. 12 seconds per lead
+                        Approx. 8.6 seconds per lead · {quota?.daily_remaining} leads remaining today
                     </p>
                 </div>
             )}

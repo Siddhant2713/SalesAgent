@@ -9,6 +9,7 @@ class Campaign(Base):
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
     name = Column(String(255), nullable=False)
+    status = Column(String(20), nullable=False, default="ready", index=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     user = relationship("User", back_populates="campaigns")
@@ -37,3 +38,22 @@ class Message(Base):
         Index("ix_messages_campaign_sent", "campaign_id", "sent", "message_type"),
         Index("ix_messages_lead_campaign", "lead_id", "campaign_id"),
     )
+
+
+class PipelineJob(Base):
+    __tablename__ = "pipeline_jobs"
+
+    id            = Column(Integer, primary_key=True, index=True)
+    campaign_id   = Column(Integer, ForeignKey("campaigns.id"), nullable=False, index=True)
+    user_id       = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    total_leads   = Column(Integer, nullable=False, default=0)
+    processed     = Column(Integer, nullable=False, default=0)
+    succeeded     = Column(Integer, nullable=False, default=0)
+    failed        = Column(Integer, nullable=False, default=0)
+    status        = Column(String(20), default="pending")
+    error_message = Column(Text, nullable=True)
+    started_at    = Column(DateTime(timezone=True), nullable=True)
+    finished_at   = Column(DateTime(timezone=True), nullable=True)
+    created_at    = Column(DateTime(timezone=True), server_default=func.now())
+
+    campaign = relationship("Campaign", backref="pipeline_jobs")
