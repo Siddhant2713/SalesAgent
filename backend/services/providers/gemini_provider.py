@@ -56,36 +56,25 @@ class GeminiProvider(BaseLLMProvider):
             inter_request_delay=self.config.inter_request_delay,
         )
 
-    def _call_sync(self, prompt: str, response_schema=None, use_grounding: bool = False) -> str:
+    def _call_sync(self, prompt: str, is_enrichment: bool = False) -> str:
         """
         Synchronous Gemini call. Called via asyncio.to_thread() in async methods.
-        Handles rate limiting, retries, and JSON extraction.
         """
-        limiter = self._get_limiter()
-
         config_kwargs: dict = {
             "temperature": (
-                self.config.temperature_enrich if use_grounding
+                self.config.temperature_enrich if is_enrichment
                 else self.config.temperature_generate
             ),
             "max_output_tokens": (
-                self.config.max_tokens_enrich if use_grounding
+                self.config.max_tokens_enrich if is_enrichment
                 else self.config.max_tokens_generate
             ),
+            "response_mime_type": "application/json",
+            "system_instruction": SYSTEM_PROMPT,
         }
-
-        if use_grounding:
-            # Note: response_mime_type is incompatible with tools — intentionally omitted
-            config_kwargs["tools"] = [types.Tool(google_search=types.GoogleSearch())]
-        else:
-            config_kwargs["response_mime_type"] = "application/json"
-            config_kwargs["system_instruction"] = SYSTEM_PROMPT
-            if response_schema:
-                config_kwargs["response_schema"] = response_schema
 
         for attempt in range(2):  # 1 retry on non-quota errors
             try:
-                limiter.acquire()
                 response = self._client.models.generate_content(
                     model=self.config.model,
                     contents=prompt,
@@ -113,6 +102,9 @@ class GeminiProvider(BaseLLMProvider):
         return json.loads(text)
 
     async def enrich(self, company: str, role: str) -> Optional[EnrichmentResult]:
+        limiter = self._get_limiter()
+        await limiter.acquire_async()
+
         prompt = (
             f"Research the company '{company}' and analyze the best approach for a cold "
             f"sales email to their {role}.\n\n"
@@ -125,7 +117,7 @@ class GeminiProvider(BaseLLMProvider):
             f'{{"company_stage":"...","likely_pain_points":["..."],"best_hook":"...","tone_recommendation":"..."}}'
         )
         try:
-            raw = await asyncio.to_thread(self._call_sync, prompt, None, True)
+            raw = await asyncio.to_thread(self._call_sync, prompt, True)
             if not raw:
                 logger.warning(f"Enrichment returned empty response for {company}")
                 return None
@@ -157,6 +149,9 @@ class GeminiProvider(BaseLLMProvider):
         lead_name: str, lead_role: str, lead_company: str,
         sender_name: str, enrichment: Optional[EnrichmentResult],
     ) -> GenerationResult:
+        limiter = self._get_limiter()
+        await limiter.acquire_async()
+
         # Convert EnrichmentResult back to dict for prompt builder
         enrichment_dict = None
         if enrichment:
@@ -170,14 +165,11 @@ class GeminiProvider(BaseLLMProvider):
             lead_name, lead_role, lead_company, sender_name, context=enrichment_dict
         )
         try:
-            raw = await asyncio.to_thread(
-                self._call_sync, prompt, InitialEmailSet, False
-            )
+            raw = await asyncio.to_thread(self._call_sync, prompt, False)
             data = self._strip_json(raw)
-        except Exception:
-            # Fallback: raw JSON without schema
-            raw = await asyncio.to_thread(self._call_sync, prompt, None, False)
-            data = self._strip_json(raw)
+        except Exception as e:
+            logger.error(f"Generation parsing failed: {e}")
+            data = {}
 
         def _variant(d: dict) -> EmailVariantResult:
             return EmailVariantResult(subject=d.get("subject", ""), body=d.get("body", ""))
@@ -193,17 +185,18 @@ class GeminiProvider(BaseLLMProvider):
         self, lead_name: str, lead_role: str, lead_company: str,
         sender_name: str, initial_tone: str, followup_tone: str,
     ) -> FollowupResult:
+        limiter = self._get_limiter()
+        await limiter.acquire_async()
+
         prompt = build_followup_prompt(
             lead_name, lead_role, lead_company, initial_tone, followup_tone, sender_name
         )
         try:
-            raw = await asyncio.to_thread(
-                self._call_sync, prompt, FollowupEmail, False
-            )
+            raw = await asyncio.to_thread(self._call_sync, prompt, False)
             data = self._strip_json(raw)
-        except Exception:
-            raw = await asyncio.to_thread(self._call_sync, prompt, None, False)
-            data = self._strip_json(raw)
+        except Exception as e:
+            logger.error(f"Followup parsing failed: {e}")
+            data = {}
         return FollowupResult(
             subject=data.get("subject", ""),
             body=data.get("body", ""),

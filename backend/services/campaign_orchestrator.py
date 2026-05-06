@@ -16,7 +16,7 @@ from services.providers.base import EnrichmentResult, GenerationResult
 
 logger = logging.getLogger(__name__)
 
-PIPELINE_WIDTH = 2  # Concurrent leads in-flight
+PIPELINE_WIDTH = 1  # Concurrent leads in-flight
 
 
 @dataclass

@@ -23,9 +23,9 @@ GEMINI_FREE_DEFAULTS = ProviderConfig(
     provider_name="gemini",
     api_key="",                  # Filled at runtime from user settings
     model="gemini-2.0-flash",
-    max_rpm=14,                  # Restoring to 14 RPM for 2.0-flash
-    max_rpd=1400,                # Restoring to 1400 RPD for 2.0-flash
-    inter_request_delay=4.3,     # 60 / 14 = 4.286s
+    max_rpm=6,                   # Safe MVP limit
+    max_rpd=300,                 # Safe MVP limit
+    inter_request_delay=10.0,    # 10s delay between requests
     temperature_enrich=0.4,
     temperature_generate=0.7,
     max_tokens_enrich=512,

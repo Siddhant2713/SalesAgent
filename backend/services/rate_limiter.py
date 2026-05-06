@@ -61,7 +61,9 @@ class _UserRateLimiter:
             self._reset_if_new_day()
             return self._max_rpd - self._daily_count
 
-    def acquire(self) -> None:
+    async def acquire_async(self) -> None:
+        import asyncio
+        sleep_time = 0.0
         with self._lock:
             self._reset_if_new_day()
 
@@ -73,10 +75,15 @@ class _UserRateLimiter:
 
             elapsed = time.monotonic() - self._last_request_time
             if elapsed < self._delay:
-                time.sleep(self._delay - elapsed)
+                sleep_time = self._delay - elapsed
+                self._last_request_time = time.monotonic() + sleep_time
+            else:
+                self._last_request_time = time.monotonic()
 
-            self._last_request_time = time.monotonic()
             self._daily_count += 1
+            
+        if sleep_time > 0:
+            await asyncio.sleep(sleep_time)
 
     def status(self) -> dict:
         with self._lock:
